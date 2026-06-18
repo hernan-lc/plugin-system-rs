@@ -256,6 +256,34 @@ mod tests {
         }
     }
 
+    struct FailingVolumeControl;
+
+    impl VolumeControl for FailingVolumeControl {
+        fn get_master_volume(&mut self) -> Result<VolumeState, String> {
+            Err("no audio device".to_string())
+        }
+
+        fn set_master_volume(&mut self, _volume: f32) -> Result<(), String> {
+            Err("cannot set master volume".to_string())
+        }
+
+        fn set_muted(&mut self, _muted: bool) -> Result<(), String> {
+            Err("cannot mute".to_string())
+        }
+
+        fn get_app_volumes(&mut self) -> Result<Vec<AppVolume>, String> {
+            Err("per-app volume unavailable".to_string())
+        }
+
+        fn set_app_volume(&mut self, _app_name: &str, _volume: f32) -> Result<(), String> {
+            Err("cannot set app volume".to_string())
+        }
+
+        fn set_app_muted(&mut self, _app_name: &str, _muted: bool) -> Result<(), String> {
+            Err("cannot mute app".to_string())
+        }
+    }
+
     #[test]
     fn metadata_and_interface_ids_are_generated() {
         let plugin = VolumeMasterPlugin::with_controller(Box::new(MockVolumeControl::new()));
@@ -318,5 +346,17 @@ mod tests {
         let app = plugin.data.apps.first().unwrap();
         assert_eq!(app.volume, 33.0);
         assert!(app.muted);
+    }
+
+    #[test]
+    fn command_errors_are_returned_as_json() {
+        let mut plugin = VolumeMasterPlugin::with_controller(Box::new(FailingVolumeControl));
+
+        let error = plugin
+            .handle_command("set_volume", serde_json::json!({"volume": 50.0}))
+            .unwrap();
+
+        assert_eq!(error["ok"], false);
+        assert_eq!(error["error"], "cannot set master volume");
     }
 }

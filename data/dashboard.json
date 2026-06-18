@@ -63,7 +63,7 @@
       "rowSpan": 1,
       "settings": {
         "refreshInterval": 2000,
-        "variant": "compact"
+        "variant": "detailed"
       }
     },
     {
@@ -77,7 +77,7 @@
         "password": "",
         "port": 4455,
         "refreshInterval": 2000,
-        "variant": "compact"
+        "variant": "detailed"
       }
     },
     {

@@ -74,10 +74,12 @@ fn parse_volume_data(data: serde_json::Value) -> Option<VolumeDataResponse> {
             platform_supported: data
                 .get("platform_supported")
                 .and_then(|v| v.as_bool())
+                .or_else(|| state.get("platform_supported").and_then(|v| v.as_bool()))
                 .unwrap_or(false),
             per_app_supported: data
                 .get("per_app_supported")
                 .and_then(|v| v.as_bool())
+                .or_else(|| state.get("per_app_supported").and_then(|v| v.as_bool()))
                 .unwrap_or(false),
         },
         apps: apps
@@ -243,3 +245,62 @@ pub(crate) async fn set_app_mute(
         .await,
     )
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_volume_data_with_apps_and_support_flags() {
+        let data = serde_json::json!({
+            "state": {
+                "master_volume": 42.5,
+                "muted": false,
+                "default_device_name": "Speakers",
+                "platform_supported": true,
+                "per_app_supported": true
+            },
+            "apps": [
+                {
+                    "name": "Firefox",
+                    "volume": 25.0,
+                    "muted": true,
+                    "pid": 1234
+                }
+            ]
+        });
+
+        let parsed = parse_volume_data(data).unwrap();
+
+        assert_eq!(parsed.state.master_volume, 42.5);
+        assert!(!parsed.state.muted);
+        assert_eq!(parsed.state.default_device_name, "Speakers");
+        assert!(parsed.state.platform_supported);
+        assert!(parsed.state.per_app_supported);
+        assert_eq!(parsed.apps.len(), 1);
+        assert_eq!(parsed.apps[0].name, "Firefox");
+        assert_eq!(parsed.apps[0].volume, 25.0);
+        assert!(parsed.apps[0].muted);
+        assert_eq!(parsed.apps[0].pid, Some(1234));
+    }
+
+    #[test]
+    fn parses_volume_data_without_apps_as_empty_list() {
+        let data = serde_json::json!({
+            "state": {
+                "master_volume": 0.0,
+                "muted": true,
+                "default_device_name": "",
+                "platform_supported": false,
+                "per_app_supported": false
+            }
+        });
+
+        let parsed = parse_volume_data(data).unwrap();
+
+        assert!(!parsed.state.platform_supported);
+        assert!(!parsed.state.per_app_supported);
+        assert!(parsed.apps.is_empty());
+    }
+}
+

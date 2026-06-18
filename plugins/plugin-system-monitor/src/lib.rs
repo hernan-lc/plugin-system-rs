@@ -17,6 +17,21 @@ pub struct SystemStats {
     pub thread_count: usize,
 }
 
+#[derive(Debug, Clone)]
+struct SystemSnapshot {
+    cpu_usage: f64,
+    cpu_model: String,
+    cpu_cores: usize,
+    memory_total: u64,
+    memory_used: u64,
+    swap_total: u64,
+    swap_used: u64,
+    load_avg: [f64; 3],
+    uptime: u64,
+    process_count: usize,
+    thread_count: usize,
+}
+
 pub trait SystemMonitor: Send + Sync {
     fn get_stats(&self) -> SystemStats;
     fn refresh(&mut self);
@@ -41,6 +56,41 @@ impl SystemMonitorPlugin {
     #[cfg(test)]
     pub(crate) fn stats(&self) -> &SystemStats {
         &self.stats
+    }
+
+    fn from_snapshot(snapshot: SystemSnapshot) -> SystemStats {
+        let memory_usage = if snapshot.memory_total > 0 {
+            snapshot.memory_used as f64 / snapshot.memory_total as f64 * 100.0
+        } else {
+            0.0
+        };
+
+        SystemStats {
+            cpu_usage: snapshot.cpu_usage,
+            cpu_model: snapshot.cpu_model,
+            cpu_cores: snapshot.cpu_cores,
+            memory_total: snapshot.memory_total,
+            memory_used: snapshot.memory_used,
+            memory_usage,
+            swap_total: snapshot.swap_total,
+            swap_used: snapshot.swap_used,
+            load_avg: snapshot.load_avg,
+            uptime: snapshot.uptime,
+            process_count: snapshot.process_count,
+            thread_count: snapshot.thread_count,
+        }
+    }
+}
+
+#[cfg(test)]
+fn cpu_usage_from_deltas(idle1: u64, total1: u64, idle2: u64, total2: u64) -> f64 {
+    let total_delta = total2.saturating_sub(total1);
+    let idle_delta = idle2.saturating_sub(idle1);
+
+    if total_delta > 0 {
+        ((total_delta - idle_delta) as f64 / total_delta as f64 * 100.0).min(100.0)
+    } else {
+        0.0
     }
 }
 
@@ -80,176 +130,48 @@ impl SystemMonitorPlugin {
         Ok(serde_json::json!({"ok": true}))
     }
 
-    fn read_cpu_times() -> Option<(u64, u64)> {
-        let content = std::fs::read_to_string("/proc/stat").ok()?;
-        let line = content.lines().next()?;
-        let parts: Vec<u64> = line
-            .split_whitespace()
-            .skip(1)
-            .filter_map(|s| s.parse().ok())
-            .collect();
-
-        if parts.len() >= 4 {
-            let idle = parts[3];
-            let total: u64 = parts.iter().sum();
-            Some((idle, total))
-        } else {
-            None
-        }
-    }
-
-    fn read_cpu_usage_sample() -> f64 {
-        let first = Self::read_cpu_times();
-        std::thread::sleep(std::time::Duration::from_millis(100));
-        let second = Self::read_cpu_times();
-
-        match (first, second) {
-            (Some((idle1, total1)), Some((idle2, total2))) => {
-                let total_delta = total2.saturating_sub(total1);
-                let idle_delta = idle2.saturating_sub(idle1);
-
-                if total_delta > 0 {
-                    ((total_delta - idle_delta) as f64 / total_delta as f64 * 100.0).min(100.0)
-                } else {
-                    0.0
-                }
-            }
-            _ => 0.0,
-        }
-    }
-
-    fn read_cpu_model() -> String {
-        std::fs::read_to_string("/proc/cpuinfo")
-            .ok()
-            .and_then(|content| {
-                content
-                    .lines()
-                    .find(|l| l.starts_with("model name"))
-                    .and_then(|l| l.split(':').nth(1))
-                    .map(|s| s.trim().to_string())
-            })
-            .unwrap_or_else(|| "Unknown".to_string())
-    }
-
-    fn read_cpu_cores() -> usize {
-        std::fs::read_to_string("/proc/cpuinfo")
-            .ok()
-            .map(|content| {
-                content
-                    .lines()
-                    .filter(|l| l.starts_with("processor"))
-                    .count()
-            })
-            .unwrap_or(1)
-    }
-
-    fn read_memory_info() -> (u64, u64, u64, u64) {
-        let content = std::fs::read_to_string("/proc/meminfo").unwrap_or_default();
-        let mut mem_total = 0u64;
-        let mut mem_available = 0u64;
-        let mut swap_total = 0u64;
-        let mut swap_free = 0u64;
-
-        for line in content.lines() {
-            let parts: Vec<&str> = line.split_whitespace().collect();
-            if parts.len() >= 2 {
-                let value = parts[1].parse::<u64>().unwrap_or(0) * 1024;
-                match parts[0] {
-                    "MemTotal:" => mem_total = value,
-                    "MemAvailable:" => mem_available = value,
-                    "SwapTotal:" => swap_total = value,
-                    "SwapFree:" => swap_free = value,
-                    _ => {}
-                }
-            }
-        }
-
-        let mem_used = mem_total.saturating_sub(mem_available.min(mem_total));
-        let swap_used = swap_total.saturating_sub(swap_free.min(swap_total));
-        (mem_total, mem_used, swap_total, swap_used)
-    }
-
-    fn read_load_avg() -> [f64; 3] {
-        std::fs::read_to_string("/proc/loadavg")
-            .ok()
-            .and_then(|content| {
-                let parts: Vec<&str> = content.split_whitespace().collect();
-                if parts.len() >= 3 {
-                    Some([
-                        parts[0].parse().unwrap_or(0.0),
-                        parts[1].parse().unwrap_or(0.0),
-                        parts[2].parse().unwrap_or(0.0),
-                    ])
-                } else {
-                    None
-                }
-            })
-            .unwrap_or([0.0, 0.0, 0.0])
-    }
-
-    fn read_uptime() -> u64 {
-        std::fs::read_to_string("/proc/uptime")
-            .ok()
-            .and_then(|content| {
-                content
-                    .split_whitespace()
-                    .next()
-                    .and_then(|s| s.parse::<f64>().ok())
-                    .map(|v| v as u64)
-            })
-            .unwrap_or(0)
-    }
-
-    fn read_process_count() -> (usize, usize) {
-        let mut processes = 0usize;
-        let mut threads = 0usize;
-
-        if let Ok(entries) = std::fs::read_dir("/proc") {
-            for entry in entries.flatten() {
-                let name = entry.file_name();
-                if let Some(s) = name.to_str() {
-                    if s.chars().all(|c| c.is_ascii_digit()) {
-                        processes += 1;
-                        if let Ok(task_dir) = std::fs::read_dir(entry.path().join("task")) {
-                            threads += task_dir.flatten().count();
-                        }
-                    }
-                }
-            }
-        }
-
-        (processes, threads)
-    }
-
     fn collect_all() -> SystemStats {
-        let cpu_usage = Self::read_cpu_usage_sample();
-        let cpu_model = Self::read_cpu_model();
-        let cpu_cores = Self::read_cpu_cores();
-        let (mem_total, mem_used, swap_total, swap_used) = Self::read_memory_info();
-        let load_avg = Self::read_load_avg();
-        let uptime = Self::read_uptime();
-        let (process_count, thread_count) = Self::read_process_count();
+        let mut system = sysinfo::System::new_all();
 
-        let memory_usage = if mem_total > 0 {
-            mem_used as f64 / mem_total as f64 * 100.0
-        } else {
-            0.0
-        };
+        system.refresh_cpu_usage();
+        std::thread::sleep(sysinfo::MINIMUM_CPU_UPDATE_INTERVAL);
+        system.refresh_cpu_usage();
 
-        SystemStats {
+        let cpu_usage = system.global_cpu_usage().clamp(0.0, 100.0) as f64;
+        let cpu_model = system
+            .cpus()
+            .first()
+            .map(|cpu| cpu.brand().trim().to_string())
+            .filter(|model| !model.is_empty())
+            .unwrap_or_else(|| "Unknown".to_string());
+        let cpu_cores = sysinfo::System::physical_core_count()
+            .unwrap_or_else(|| system.cpus().len().max(1));
+
+        system.refresh_memory();
+        system.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
+
+        let load_average = sysinfo::System::load_average();
+        let load_avg = [load_average.one, load_average.five, load_average.fifteen];
+        let process_count = system.processes().len();
+        let thread_count = system
+            .processes()
+            .values()
+            .map(|process| process.tasks().map(|tasks| tasks.len()).unwrap_or(0))
+            .sum();
+
+        Self::from_snapshot(SystemSnapshot {
             cpu_usage,
             cpu_model,
             cpu_cores,
-            memory_total: mem_total,
-            memory_used: mem_used,
-            memory_usage,
-            swap_total,
-            swap_used,
+            memory_total: system.total_memory(),
+            memory_used: system.used_memory(),
+            swap_total: system.total_swap(),
+            swap_used: system.used_swap(),
             load_avg,
-            uptime,
+            uptime: sysinfo::System::uptime(),
             process_count,
             thread_count,
-        }
+        })
     }
 }
 
@@ -294,7 +216,7 @@ mod tests {
     }
 
     #[test]
-    fn interface_data_returns_canned_stats_without_reading_proc() {
+    fn interface_data_returns_canned_stats_without_reading_system() {
         let plugin = SystemMonitorPlugin::with_stats(sample_stats());
 
         let data = plugin.interface_data().unwrap();
@@ -316,5 +238,41 @@ mod tests {
             .unwrap();
 
         assert_eq!(refreshed["ok"], true);
+    }
+
+    #[test]
+    fn cpu_usage_uses_idle_delta_ratio() {
+        let usage = super::cpu_usage_from_deltas(400, 1000, 1100, 2000);
+
+        assert_eq!(usage, 30.0);
+    }
+
+    #[test]
+    fn cpu_usage_returns_zero_without_positive_total_delta() {
+        let usage = super::cpu_usage_from_deltas(400, 1000, 400, 1000);
+
+        assert_eq!(usage, 0.0);
+    }
+
+    #[test]
+    fn snapshot_to_stats_calculates_memory_percentage() {
+        let stats = SystemMonitorPlugin::from_snapshot(SystemSnapshot {
+            cpu_usage: 12.5,
+            cpu_model: "Snapshot CPU".to_string(),
+            cpu_cores: 4,
+            memory_total: 1000,
+            memory_used: 250,
+            swap_total: 500,
+            swap_used: 100,
+            load_avg: [0.5, 0.75, 1.0],
+            uptime: 3600,
+            process_count: 42,
+            thread_count: 300,
+        });
+
+        assert_eq!(stats.memory_usage, 25.0);
+        assert_eq!(stats.memory_used, 250);
+        assert_eq!(stats.swap_used, 100);
+        assert_eq!(stats.uptime, 3600);
     }
 }
