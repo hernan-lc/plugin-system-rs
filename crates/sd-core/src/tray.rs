@@ -5,6 +5,8 @@ use std::thread;
 use tao::event_loop::{ControlFlow, EventLoopBuilder};
 #[cfg(target_os = "linux")]
 use tao::platform::unix::EventLoopBuilderExtUnix;
+#[cfg(target_os = "windows")]
+use tao::platform::windows::EventLoopBuilderExtWindows;
 use tray_icon::menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem};
 use tray_icon::{TrayIcon, TrayIconBuilder, TrayIconEvent};
 
@@ -50,6 +52,8 @@ pub fn spawn_tray(shutdown: Arc<AtomicBool>, pid_lock_path: PathBuf, port: u16) 
     thread::spawn(move || {
         let mut builder = EventLoopBuilder::<()>::new();
         #[cfg(target_os = "linux")]
+        builder.with_any_thread(true);
+        #[cfg(target_os = "windows")]
         builder.with_any_thread(true);
         let event_loop = builder.build();
 
