@@ -215,9 +215,8 @@ impl SdPluginManager {
         let mut state = PluginState::load()?;
         self.set_plugin_enabled_with_state(name, enabled, &mut state)
             .await
-            .map(|status| {
+            .inspect(|_status| {
                 let _ = state.save();
-                status
             })
     }
 

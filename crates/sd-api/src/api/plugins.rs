@@ -15,7 +15,9 @@ pub(crate) struct PluginDataResponse {
     data: serde_json::Value,
 }
 
-pub(crate) async fn list_plugins(State(state): State<AppState>) -> Json<ApiResponse<Vec<PluginStatus>>> {
+pub(crate) async fn list_plugins(
+    State(state): State<AppState>,
+) -> Json<ApiResponse<Vec<PluginStatus>>> {
     match state.plugin_manager.list_plugin_statuses().await {
         Ok(statuses) => Json(ApiResponse::success(statuses)),
         Err(e) => Json(ApiResponse::error(e.to_string())),
@@ -70,7 +72,11 @@ pub(crate) async fn set_plugin_enabled(
     Path(plugin_name): Path<String>,
     Json(req): Json<SetEnabledRequest>,
 ) -> Json<ApiResponse<PluginStatus>> {
-    match state.plugin_manager.set_plugin_enabled(plugin_name.clone(), req.enabled).await {
+    match state
+        .plugin_manager
+        .set_plugin_enabled(plugin_name.clone(), req.enabled)
+        .await
+    {
         Ok(status) => Json(ApiResponse::success(status)),
         Err(e) => Json(ApiResponse::error(e.to_string())),
     }
