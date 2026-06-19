@@ -68,7 +68,7 @@ export function Plugins() {
                   class: `plugin-status ${plugin.loaded ? 'loaded' : 'not-loaded'
                   }`,
                 }, plugin.loaded ? 'Loaded' : 'Disabled'),
-                h('span', { class: 'plugin-path' }, plugin.path.split('/').pop() ?? plugin.path)
+                h('span', { class: 'plugin-path' }, plugin.path.split(/[\\/]/).pop() ?? plugin.path)
               )
             )
           )

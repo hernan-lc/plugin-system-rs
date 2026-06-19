@@ -623,6 +623,22 @@ impl PluginManager {
         self.loaded.get(name).map(|p| p.metadata.clone())
     }
 
+    pub fn metadata_from_path(path: impl AsRef<Path>) -> Result<PluginMetadata> {
+        let path = path.as_ref();
+        let lib = unsafe {
+            libloading::Library::new(path).map_err(|e| PluginError::LibraryLoad {
+                path: path.to_path_buf(),
+                reason: e.to_string(),
+            })?
+        };
+
+        Self::load_metadata(&lib, path, prefix_from_path(path).as_deref())
+    }
+
+    pub fn plugin_metadata_from_path(&self, path: impl AsRef<Path>) -> Result<PluginMetadata> {
+        Self::metadata_from_path(path)
+    }
+
     pub fn with_plugin<R>(&self, name: &str, f: impl FnOnce(&dyn Plugin) -> R) -> Result<R> {
         let registry = self.read_registry(self.registry.read(), "PluginRegistry")?;
         let plugin_arc = registry

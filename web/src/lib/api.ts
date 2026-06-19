@@ -54,7 +54,7 @@ export async function reloadPlugins() {
 
 export async function setPluginEnabled(pluginName: string, enabled: boolean): Promise<PluginStatus> {
   const res = await fetch(`${API_BASE}/plugins/${encodeURIComponent(pluginName)}/enabled`, {
-    method: "POST",
+    method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ enabled }),
   });

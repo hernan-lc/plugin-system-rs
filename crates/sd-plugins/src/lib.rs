@@ -1,4 +1,4 @@
-use plugin_system::{PluginManager, serde_json};
+use plugin_system::{serde_json, PluginManager};
 use sd_actions::ActionRegistry;
 use sd_events::EventBus;
 use sd_types::ActionId;
@@ -110,17 +110,38 @@ impl SdPluginManager {
                     continue;
                 }
             }
-            let file_name = path.file_stem().and_then(|s| s.to_str()).unwrap_or("unknown");
-            let name = derive_plugin_name(file_name);
-            if !state.is_enabled(&name) {
+            let file_name = path
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or("unknown")
+                .to_string();
+            let derived_name = derive_plugin_name(&file_name);
+            let metadata_name = PluginManager::metadata_from_path(&path)
+                .ok()
+                .map(|metadata| metadata.name);
+            let enabled_by_file_name = state.is_enabled(&derived_name);
+            let enabled_by_metadata = metadata_name
+                .as_ref()
+                .map(|name| state.is_enabled(name))
+                .unwrap_or(true);
+            if !enabled_by_file_name && !enabled_by_metadata {
                 continue;
             }
+
             let mut manager = self.plugin_manager.write().await;
-            if manager.is_loaded(&name) {
+            let loaded_name = if manager.is_loaded(&derived_name) {
+                Some(derived_name.clone())
+            } else if let Some(name) = &metadata_name {
+                manager.is_loaded(name).then(|| name.clone())
+            } else {
+                None
+            };
+            if let Some(name) = loaded_name {
                 loaded.push(name);
                 continue;
             }
-            manager.load_plugin(&path).map(|_| loaded.push(name))?;
+            let actual_name = manager.load_plugin(&path)?;
+            loaded.push(actual_name);
         }
         Ok(loaded)
     }
@@ -142,18 +163,33 @@ impl SdPluginManager {
                         continue;
                     }
                 }
-                let file_name = path.file_stem().and_then(|s| s.to_str()).unwrap_or("unknown");
-                let name = derive_plugin_name(file_name);
-                let loaded = manager.is_loaded(&name);
-                let enabled = state.is_enabled(&name);
-                let metadata = manager.plugin_metadata(&name);
-                let version = metadata.map(|m| m.version).unwrap_or_default();
+                let file_name = path
+                    .file_stem()
+                    .and_then(|s| s.to_str())
+                    .unwrap_or("unknown")
+                    .to_string();
+                let derived_name = derive_plugin_name(&file_name);
+                let metadata = manager
+                    .plugin_metadata(&derived_name)
+                    .or_else(|| PluginManager::metadata_from_path(&path).ok());
+                let plugin_name = metadata
+                    .as_ref()
+                    .map(|metadata| metadata.name.clone())
+                    .unwrap_or_else(|| derived_name.clone());
+                let loaded = manager.is_loaded(&plugin_name) || manager.is_loaded(&derived_name);
+                let enabled = state.is_enabled(&plugin_name) || state.is_enabled(&derived_name);
+                let path = manager
+                    .plugin_path(&plugin_name)
+                    .or_else(|| manager.plugin_path(&derived_name))
+                    .unwrap_or(path);
                 statuses.push(PluginStatus {
-                    name,
+                    name: plugin_name,
                     path: path.display().to_string(),
                     loaded,
                     enabled,
-                    version,
+                    version: metadata
+                        .map(|metadata| metadata.version)
+                        .unwrap_or_default(),
                 });
             }
         }
@@ -171,7 +207,11 @@ impl SdPluginManager {
             .collect()
     }
 
-    pub async fn set_plugin_enabled(&self, name: String, enabled: bool) -> PluginResult<PluginStatus> {
+    pub async fn set_plugin_enabled(
+        &self,
+        name: String,
+        enabled: bool,
+    ) -> PluginResult<PluginStatus> {
         let mut state = PluginState::load()?;
         self.set_plugin_enabled_with_state(name, enabled, &mut state)
             .await
@@ -188,35 +228,42 @@ impl SdPluginManager {
         state: &mut PluginState,
     ) -> PluginResult<PluginStatus> {
         let mut manager = self.plugin_manager.write().await;
-        let already_loaded = manager.is_loaded(&name);
+        let path = manager
+            .plugin_path(&name)
+            .unwrap_or_else(|| self.find_plugin_path(&name));
+        let metadata_name = PluginManager::metadata_from_path(&path)
+            .ok()
+            .map(|metadata| metadata.name);
+        let target_name = metadata_name.unwrap_or_else(|| name.clone());
+        let already_loaded = manager.is_loaded(&target_name) || manager.is_loaded(&name);
         if enabled {
-            state.set_enabled(name.clone(), true);
+            state.set_enabled(target_name.clone(), true);
             if !already_loaded {
                 let path = manager
-                    .plugin_path(&name)
-                    .unwrap_or_else(|| self.find_plugin_path(&name));
+                    .plugin_path(&target_name)
+                    .unwrap_or_else(|| self.find_plugin_path(&target_name));
                 if !path.exists() {
-                    return Err(PluginResultError::NotFound(name.clone()));
+                    return Err(PluginResultError::NotFound(target_name.clone()));
                 }
                 manager.load_plugin(&path)?;
             }
         } else {
             if already_loaded {
-                manager.unload_plugin(&name)?;
+                manager
+                    .unload_plugin(&target_name)
+                    .or_else(|_| manager.unload_plugin(&name))?;
             }
-            state.set_enabled(name.clone(), false);
+            state.set_enabled(target_name.clone(), false);
         }
 
-        let status = self.plugin_status_from_manager(&manager, &name)?;
+        let status = self.plugin_status_from_manager(&manager, &target_name)?;
         Ok(status)
     }
 
     pub async fn reload_plugins(&self) -> Result<(), String> {
         let mut manager = self.plugin_manager.write().await;
         for name in manager.plugin_names() {
-            manager
-                .reload_plugin(&name)
-                .map_err(|e| e.to_string())?;
+            manager.reload_plugin(&name).map_err(|e| e.to_string())?;
         }
         Ok(())
     }
@@ -256,6 +303,12 @@ impl SdPluginManager {
                     if derived == name {
                         return path;
                     }
+                    if PluginManager::metadata_from_path(&path)
+                        .map(|metadata| metadata.name == name)
+                        .unwrap_or(false)
+                    {
+                        return path;
+                    }
                 }
             }
         }
@@ -271,14 +324,19 @@ impl SdPluginManager {
         let path = manager
             .plugin_path(name)
             .unwrap_or_else(|| self.find_plugin_path(name));
+        let metadata = manager.plugin_metadata(name).or_else(|| {
+            if !path.exists() {
+                return None;
+            }
+            PluginManager::metadata_from_path(&path).ok()
+        });
         Ok(PluginStatus {
             name: name.to_string(),
             path: path.display().to_string(),
             loaded: manager.is_loaded(name),
             enabled: state.is_enabled(name),
-            version: manager
-                .plugin_metadata(name)
-                .map(|m| m.version)
+            version: metadata
+                .map(|metadata| metadata.version)
                 .unwrap_or_default(),
         })
     }
