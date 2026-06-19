@@ -3089,6 +3089,9 @@ dependencies = [
  "sd-actions",
  "sd-events",
  "sd-types",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
  "tokio",
 ]
 

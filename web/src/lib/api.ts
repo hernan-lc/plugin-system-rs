@@ -1,4 +1,4 @@
-import { DashboardLayout } from "./types";
+import { DashboardLayout, PluginStatus } from "./types";
 
 const API_BASE = "/api";
 
@@ -38,10 +38,10 @@ export async function fetchActions() {
   return data.data || [];
 }
 
-export async function fetchPlugins() {
+export async function fetchPlugins(): Promise<PluginStatus[]> {
   const res = await fetch(`${API_BASE}/plugins`);
   const data = await res.json();
-  return data.data || [];
+  return (data.data || []) as PluginStatus[];
 }
 
 export async function reloadPlugins() {
@@ -50,6 +50,19 @@ export async function reloadPlugins() {
   });
   const data = await res.json();
   return data;
+}
+
+export async function setPluginEnabled(pluginName: string, enabled: boolean): Promise<PluginStatus> {
+  const res = await fetch(`${API_BASE}/plugins/${encodeURIComponent(pluginName)}/enabled`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ enabled }),
+  });
+  const data = await res.json();
+  if (!res.ok || !data.success) {
+    throw new Error(data.error || "Failed to update plugin");
+  }
+  return data.data as PluginStatus;
 }
 
 export async function simulateButtonPress(

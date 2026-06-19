@@ -49,6 +49,14 @@ export interface PluginData {
   data: Record<string, any>;
 }
 
+export interface PluginStatus {
+  name: string;
+  path: string;
+  loaded: boolean;
+  enabled: boolean;
+  version: string;
+}
+
 export type WidgetType =
   | "system-monitor"
   | "clock"

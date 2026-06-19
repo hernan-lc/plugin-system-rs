@@ -2,9 +2,10 @@ use axum::{
     extract::{Path, State},
     Json,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::{response::ApiResponse, state::AppState};
+use sd_plugins::PluginStatus;
 
 #[derive(Serialize)]
 pub(crate) struct PluginDataResponse {
@@ -14,9 +15,11 @@ pub(crate) struct PluginDataResponse {
     data: serde_json::Value,
 }
 
-pub(crate) async fn list_plugins(State(state): State<AppState>) -> Json<ApiResponse<Vec<String>>> {
-    let plugins = state.plugin_manager.list_plugins().await;
-    Json(ApiResponse::success(plugins))
+pub(crate) async fn list_plugins(State(state): State<AppState>) -> Json<ApiResponse<Vec<PluginStatus>>> {
+    match state.plugin_manager.list_plugin_statuses().await {
+        Ok(statuses) => Json(ApiResponse::success(statuses)),
+        Err(e) => Json(ApiResponse::error(e.to_string())),
+    }
 }
 
 pub(crate) async fn reload_plugins(State(state): State<AppState>) -> Json<ApiResponse<String>> {
@@ -53,6 +56,22 @@ pub(crate) async fn get_plugin_data(
                 data,
             }))
         }
+        Err(e) => Json(ApiResponse::error(e.to_string())),
+    }
+}
+
+#[derive(Deserialize)]
+pub(crate) struct SetEnabledRequest {
+    enabled: bool,
+}
+
+pub(crate) async fn set_plugin_enabled(
+    State(state): State<AppState>,
+    Path(plugin_name): Path<String>,
+    Json(req): Json<SetEnabledRequest>,
+) -> Json<ApiResponse<PluginStatus>> {
+    match state.plugin_manager.set_plugin_enabled(plugin_name.clone(), req.enabled).await {
+        Ok(status) => Json(ApiResponse::success(status)),
         Err(e) => Json(ApiResponse::error(e.to_string())),
     }
 }

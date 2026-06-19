@@ -1,6 +1,6 @@
 use axum::{
     response::Html,
-    routing::{get, post, put},
+    routing::{get, delete, post, put},
     Router,
 };
 use tower_http::cors::{Any, CorsLayer};
@@ -54,6 +54,10 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/plugins", get(plugins::list_plugins))
         .route("/api/plugins/reload", post(plugins::reload_plugins))
         .route("/api/plugins/:plugin_name", get(plugins::get_plugin_data))
+        .route(
+            "/api/plugins/:plugin_name/enabled",
+            put(plugins::set_plugin_enabled),
+        )
         .route("/api/system-stats", get(system::get_system_stats))
         .route("/api/local-ip", get(system::get_local_ip))
         .route("/api/volume", get(volume::get_volume_state))
