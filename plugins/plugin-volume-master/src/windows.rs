@@ -1,17 +1,19 @@
 use std::collections::HashSet;
 
-use windows::core::{Interface, Result as WinResult};
-use windows::Win32::Foundation::{BOOL, CloseHandle, RPC_E_CHANGED_MODE, S_FALSE, TRUE};
+use windows::core::{Interface, Result as WinResult, BSTR};
+use windows::Win32::Devices::FunctionDiscovery::PKEY_Device_FriendlyName;
+use windows::Win32::Foundation::{CloseHandle, BOOL, RPC_E_CHANGED_MODE, S_FALSE, TRUE};
 use windows::Win32::Media::Audio::Endpoints::IAudioEndpointVolume;
 use windows::Win32::Media::Audio::{
     eMultimedia, eRender, IMMDevice, IMMDeviceEnumerator, MMDeviceEnumerator,
 };
 use windows::Win32::System::Com::{
-    CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_ALL, COINIT_MULTITHREADED,
+    CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_ALL, COINIT_MULTITHREADED, STGM_READ,
 };
 use windows::Win32::System::Threading::{
     OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION,
 };
+use windows::Win32::UI::Shell::PropertiesSystem::IPropertyStore;
 
 use crate::{AppVolume, VolumeControl, VolumeState};
 
@@ -79,7 +81,9 @@ impl SessionVolume {
         let display_name = normalize_app_name(&self.display_name);
         let process_name = self.process_name.as_deref().map(normalize_app_name);
         let process_path = self.process_path.as_deref().map(normalize_app_name);
-        let pid_name = self.pid.map(|pid| normalize_app_name(&format!("PID:{pid}")));
+        let pid_name = self
+            .pid
+            .map(|pid| normalize_app_name(&format!("PID:{pid}")));
 
         display_name == query
             || process_name.as_deref() == Some(query.as_str())
@@ -156,6 +160,47 @@ fn get_device() -> WinResult<IMMDevice> {
     }
 }
 
+fn get_device_friendly_name(device: &IMMDevice) -> WinResult<String> {
+    unsafe {
+        let store: IPropertyStore = device.OpenPropertyStore(STGM_READ)?;
+        let value = store.GetValue(&PKEY_Device_FriendlyName)?;
+        let name = BSTR::try_from(&value)
+            .ok()
+            .map(|name| name.to_string())
+            .filter(|name| !name.trim().is_empty());
+        Ok(name.unwrap_or_default())
+    }
+}
+
+fn normalize_resource_name(name: &str) -> Option<String> {
+    match name {
+        "@%SystemRoot%\\System32\\AudioSrv.Dll,-202" => Some("System Sounds".to_string()),
+        "@%SystemRoot%\\System32\\AudioSrv.Dll,-203" => Some("Communications".to_string()),
+        _ => None,
+    }
+}
+
+fn display_session_name(
+    display_name: &str,
+    process_name: Option<&str>,
+    pid: Option<u32>,
+) -> String {
+    if let Some(mapped) = normalize_resource_name(display_name) {
+        return mapped;
+    }
+
+    if !display_name.trim().is_empty() {
+        return display_name.trim().to_string();
+    }
+
+    if let Some(process_name) = process_name.filter(|name| !name.is_empty()) {
+        return process_name.to_string();
+    }
+
+    pid.map(|pid| format!("PID:{pid}"))
+        .unwrap_or_else(|| "Unknown".to_string())
+}
+
 impl WindowsController {
     fn get_session_volumes() -> Result<Vec<SessionVolume>, String> {
         let mut sessions = Vec::new();
@@ -198,6 +243,8 @@ impl WindowsController {
                     .as_deref()
                     .map(process_basename)
                     .map(ToString::to_string);
+                let session_name =
+                    display_session_name(&display_name, process_name.as_deref(), pid);
 
                 let mut volume = 0.0f32;
                 let mut muted = false;
@@ -212,7 +259,7 @@ impl WindowsController {
                 }
 
                 sessions.push(SessionVolume {
-                    display_name,
+                    display_name: session_name,
                     process_name,
                     process_path,
                     pid,
@@ -248,9 +295,8 @@ impl VolumeControl for WindowsController {
 
             let device = get_device().map_err(|e| format!("Get device: {}", e))?;
 
-            let device_name = device
-                .GetId()
-                .map(|id| id.to_string().unwrap_or_default())
+            let device_name = get_device_friendly_name(&device)
+                .or_else(|_| device.GetId().map(|id| id.to_string().unwrap_or_default()))
                 .unwrap_or_default();
 
             Ok(VolumeState {
@@ -341,7 +387,10 @@ impl VolumeControl for WindowsController {
 
             let scalar = (volume / 100.0).clamp(0.0, 1.0);
 
-            for (i, session_control) in (0..count).filter_map(|i| session_list.GetSession(i).ok()).enumerate() {
+            for (i, session_control) in (0..count)
+                .filter_map(|i| session_list.GetSession(i).ok())
+                .enumerate()
+            {
                 if i != index {
                     continue;
                 }
@@ -383,7 +432,10 @@ impl VolumeControl for WindowsController {
 
             let mute_val = BOOL::from(muted);
 
-            for (i, session_control) in (0..count).filter_map(|i| session_list.GetSession(i).ok()).enumerate() {
+            for (i, session_control) in (0..count)
+                .filter_map(|i| session_list.GetSession(i).ok())
+                .enumerate()
+            {
                 if i != index {
                     continue;
                 }
@@ -432,14 +484,22 @@ mod tests {
 
     #[test]
     fn session_matches_by_process_basename() {
-        let session = session("", Some(r"C:\Program Files\Firefox\firefox.exe"), Some(1234));
+        let session = session(
+            "",
+            Some(r"C:\Program Files\Firefox\firefox.exe"),
+            Some(1234),
+        );
 
         assert!(session.matches_query("firefox.exe"));
     }
 
     #[test]
     fn session_matches_by_full_process_path() {
-        let session = session("", Some(r"C:\Program Files\Firefox\firefox.exe"), Some(1234));
+        let session = session(
+            "",
+            Some(r"C:\Program Files\Firefox\firefox.exe"),
+            Some(1234),
+        );
 
         assert!(session.matches_query(r"C:\Program Files\Firefox\firefox.exe"));
     }
@@ -448,5 +508,17 @@ mod tests {
     fn process_basename_handles_windows_and_unix_separators() {
         assert_eq!(process_basename(r"C:\Program Files\App\app.exe"), "app.exe");
         assert_eq!(process_basename("/usr/bin/app"), "app");
+    }
+
+    #[test]
+    fn resource_display_names_are_humanized() {
+        assert_eq!(
+            display_session_name(r"@%SystemRoot%\System32\AudioSrv.Dll,-202", None, Some(0)),
+            "System Sounds"
+        );
+        assert_eq!(
+            display_session_name("", Some("firefox.exe"), Some(1234)),
+            "firefox.exe"
+        );
     }
 }

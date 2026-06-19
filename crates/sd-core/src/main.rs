@@ -10,12 +10,24 @@ use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use thiserror::Error;
 use tokio::sync::RwLock;
 
 mod tray;
 
+#[derive(Debug, Error)]
+enum Error {
+    #[error("I/O error: {0}")]
+    Io(#[from] io::Error),
+
+    #[error("sd-core is already running with PID {pid}. Lock file: {path}")]
+    AlreadyRunning { pid: u32, path: PathBuf },
+}
+
+type Result<T, E = Error> = std::result::Result<T, E>;
+
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
@@ -162,7 +174,7 @@ impl Drop for PidLock {
     }
 }
 
-fn acquire_pid_lock() -> Result<PidLock, Box<dyn std::error::Error>> {
+fn acquire_pid_lock() -> Result<PidLock> {
     let path = pid_lock_path();
     let pid = std::process::id();
 
@@ -172,23 +184,17 @@ fn acquire_pid_lock() -> Result<PidLock, Box<dyn std::error::Error>> {
 
     if let Some(existing_pid) = read_pid_lock(&path) {
         if existing_pid == pid {
-            return Err(io::Error::new(
-                io::ErrorKind::AlreadyExists,
-                format!("sd-core already holds this pid lock: {}", path.display()),
-            )
-            .into());
+            return Err(Error::AlreadyRunning {
+                pid: existing_pid,
+                path: path.clone(),
+            });
         }
 
         if pid_is_running(existing_pid) {
-            return Err(io::Error::new(
-                io::ErrorKind::AlreadyExists,
-                format!(
-                    "sd-core is already running with PID {}. Lock file: {}",
-                    existing_pid,
-                    path.display()
-                ),
-            )
-            .into());
+            return Err(Error::AlreadyRunning {
+                pid: existing_pid,
+                path,
+            });
         }
 
         tracing::warn!(
@@ -207,26 +213,17 @@ fn acquire_pid_lock() -> Result<PidLock, Box<dyn std::error::Error>> {
         Err(err) if err.kind() == io::ErrorKind::AlreadyExists => {
             if let Some(existing_pid) = read_pid_lock(&path) {
                 if pid_is_running(existing_pid) {
-                    return Err(io::Error::new(
-                        io::ErrorKind::AlreadyExists,
-                        format!(
-                            "sd-core is already running with PID {}. Lock file: {}",
-                            existing_pid,
-                            path.display()
-                        ),
-                    )
-                    .into());
+                    return Err(Error::AlreadyRunning {
+                        pid: existing_pid,
+                        path,
+                    });
                 }
 
                 let _ = fs::remove_file(&path);
                 return acquire_pid_lock();
             }
 
-            Err(io::Error::new(
-                io::ErrorKind::AlreadyExists,
-                format!("sd-core is already running. Lock file: {}", path.display()),
-            )
-            .into())
+            Err(Error::AlreadyRunning { pid: 0, path })
         }
         Err(err) => Err(err.into()),
     }
@@ -270,7 +267,22 @@ fn pid_is_running(pid: u32) -> bool {
         Path::new("/proc").join(pid.to_string()).exists()
     }
 
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(target_os = "windows")]
+    {
+        use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
+        use windows_sys::Win32::System::Threading::OpenProcess;
+
+        unsafe {
+            let handle: HANDLE = OpenProcess(0x1000, 0, pid);
+            if handle == 0 {
+                return false;
+            }
+            let _ = CloseHandle(handle);
+            true
+        }
+    }
+
+    #[cfg(not(any(target_os = "linux", target_os = "windows")))]
     {
         let _ = pid;
         true

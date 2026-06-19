@@ -303,4 +303,3 @@ mod tests {
         assert!(parsed.apps.is_empty());
     }
 }
-

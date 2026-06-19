@@ -3054,10 +3054,12 @@ dependencies = [
  "sd-profiles",
  "sd-types",
  "tao",
+ "thiserror 1.0.69",
  "tokio",
  "tracing",
  "tracing-subscriber",
  "tray-icon",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
