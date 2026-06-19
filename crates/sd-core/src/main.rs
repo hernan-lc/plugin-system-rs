@@ -70,13 +70,18 @@ async fn main() -> Result<()> {
     device_manager.add_device(virtual_device).await;
     println!("Added virtual device with 15 buttons");
 
-    let plugin_manager = Arc::new(SdPluginManager::new(
-        events.clone(),
-        action_registry.clone(),
-    ));
+    let plugin_dir = std::env::var("SD_PLUGIN_DIR")
+        .unwrap_or_else(|_| "./plugins".to_string());
 
-    let plugin_dir = "./plugins";
-    match plugin_manager.load_plugins_from_dir(plugin_dir).await {
+    let plugin_dir = std::env::var("SD_PLUGIN_DIR")
+        .unwrap_or_else(|_| "./plugins".to_string());
+
+    let plugin_manager = Arc::new(
+        SdPluginManager::new(events.clone(), action_registry.clone())
+            .with_plugin_dir(plugin_dir.clone()),
+    );
+
+    match plugin_manager.load_enabled_plugins_from_dir().await {
         Ok(loaded) => {
             if loaded.is_empty() {
                 println!("No plugins found in {}", plugin_dir);

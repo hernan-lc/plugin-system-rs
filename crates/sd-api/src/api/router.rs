@@ -1,5 +1,5 @@
 use axum::{
-    response::Html,
+    response::{Html, IntoResponse},
     routing::{get, delete, post, put},
     Router,
 };
@@ -21,10 +21,21 @@ pub fn create_router(state: AppState) -> Router {
         .allow_methods(Any)
         .allow_headers(Any);
 
-    let static_files =
-        ServeDir::new("web/dist").not_found_service(get(|_: axum::extract::Request| async {
-            Html(include_str!("../../../../web/dist/index.html"))
-        }));
+    let web_dist = std::env::var("SD_WEB_DIST").unwrap_or_else(|_| "web/dist".to_string());
+    let web_dist_path = std::path::PathBuf::from(&web_dist);
+
+    let static_files = ServeDir::new(&web_dist).not_found_service(get(
+        move |_: axum::extract::Request| {
+            let web_dist_path = web_dist_path.clone();
+            async move {
+                let index = web_dist_path.join("index.html");
+                match std::fs::read_to_string(&index) {
+                    Ok(body) => Html(body).into_response(),
+                    Err(_) => Html("<h1>Not Found</h1>".to_string()).into_response(),
+                }
+            }
+        },
+    ));
 
     Router::new()
         .route("/api/devices", get(devices::list_devices))
