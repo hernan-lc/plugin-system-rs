@@ -35,4 +35,6 @@ coverage/
 data/dashboard.json
 macos-sdk/
 *.dll
+*.so
+*.dylib
 data/plugin-state.json
