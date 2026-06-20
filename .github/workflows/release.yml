@@ -194,10 +194,10 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: streamdeck-windows-arm64
-        path: |
-          releases/*/windows-arm64/*.zip
-          releases/*/windows-arm64/checksums-sha256.txt
-          releases/*/windows-arm64/sbom.spdx.json
+          path: |
+            releases/*/windows-arm64/*.zip
+            releases/*/windows-arm64/checksums-sha256.txt
+            releases/*/windows-arm64/sbom.spdx.json
 
   # macOS arm64: tar.gz + dmg + pkg
   build-macos-arm64:
