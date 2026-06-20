@@ -366,7 +366,41 @@ impl PulseController {
 }
 
 pub fn create_controller() -> Box<dyn VolumeControl> {
-    Box::new(PulseController::new().expect("Failed to create PulseController"))
+    match PulseController::new() {
+        Ok(ctrl) => Box::new(ctrl),
+        Err(e) => {
+            log::warn!("PulseAudio unavailable ({}), using fallback controller", e);
+            Box::new(FallbackController)
+        }
+    }
+}
+
+struct FallbackController;
+
+impl VolumeControl for FallbackController {
+    fn get_master_volume(&mut self) -> Result<VolumeState, String> {
+        Err("PulseAudio unavailable".into())
+    }
+
+    fn set_master_volume(&mut self, _volume: f32) -> Result<(), String> {
+        Err("PulseAudio unavailable".into())
+    }
+
+    fn set_muted(&mut self, _muted: bool) -> Result<(), String> {
+        Err("PulseAudio unavailable".into())
+    }
+
+    fn get_app_volumes(&mut self) -> Result<Vec<AppVolume>, String> {
+        Err("PulseAudio unavailable".into())
+    }
+
+    fn set_app_volume(&mut self, _app_name: &str, _volume: f32) -> Result<(), String> {
+        Err("PulseAudio unavailable".into())
+    }
+
+    fn set_app_muted(&mut self, _app_name: &str, _muted: bool) -> Result<(), String> {
+        Err("PulseAudio unavailable".into())
+    }
 }
 
 impl Drop for PulseController {

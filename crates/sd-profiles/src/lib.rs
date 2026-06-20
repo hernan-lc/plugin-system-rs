@@ -76,3 +76,47 @@ impl ProfileManager {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn create_and_get_profile() {
+        let events = Arc::new(EventBus::new());
+        let mgr = ProfileManager::new(events);
+        let id = mgr.create_profile("Test").await;
+        let profile = mgr.get_profile(&id).await;
+        assert!(profile.is_some());
+        assert_eq!(profile.unwrap().name, "Test");
+    }
+
+    #[tokio::test]
+    async fn list_profiles() {
+        let events = Arc::new(EventBus::new());
+        let mgr = ProfileManager::new(events);
+        mgr.create_profile("A").await;
+        mgr.create_profile("B").await;
+        assert_eq!(mgr.list_profiles().await.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn delete_profile() {
+        let events = Arc::new(EventBus::new());
+        let mgr = ProfileManager::new(events);
+        let id = mgr.create_profile("Del").await;
+        assert!(mgr.delete_profile(&id).await);
+        assert!(mgr.get_profile(&id).await.is_none());
+    }
+
+    #[tokio::test]
+    async fn set_active_profile() {
+        let events = Arc::new(EventBus::new());
+        let mgr = ProfileManager::new(events);
+        let id = mgr.create_profile("Active").await;
+        assert!(mgr.set_active_profile(id).await);
+        let active = mgr.get_active_profile().await;
+        assert!(active.is_some());
+        assert_eq!(active.unwrap().name, "Active");
+    }
+}

@@ -151,3 +151,41 @@ pub struct DeviceInfo {
     pub key_count: usize,
     pub is_virtual: bool,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn plugin_result_constructors() {
+        assert_eq!(PluginResult::string("hello").as_string(), Some("hello"));
+        assert_eq!(PluginResult::int(42).as_int(), Some(42));
+        assert_eq!(PluginResult::float(3.14).as_float(), Some(3.14));
+        assert_eq!(PluginResult::bool(true).as_bool(), Some(true));
+        assert_eq!(PluginResult::null().as_string(), None);
+    }
+
+    #[test]
+    fn profile_new_creates_with_one_page() {
+        let profile = Profile::new("Test");
+        assert_eq!(profile.name, "Test");
+        assert_eq!(profile.pages.len(), 1);
+        assert_eq!(profile.pages[0].buttons.len(), 15);
+    }
+
+    #[test]
+    fn button_binding_empty() {
+        let b = ButtonBinding::empty();
+        assert!(b.action_id.is_none());
+        assert!(b.settings.is_empty());
+        assert!(b.label.is_empty());
+        assert!(b.icon.is_empty());
+    }
+
+    #[test]
+    fn plugin_result_display() {
+        assert_eq!(PluginResult::string("hi").to_string(), "hi");
+        assert_eq!(PluginResult::int(5).to_string(), "5");
+        assert_eq!(PluginResult::null().to_string(), "null");
+    }
+}

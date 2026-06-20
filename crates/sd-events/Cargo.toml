@@ -7,3 +7,7 @@ edition = "2021"
 sd-types = { path = "../sd-types" }
 tokio = { version = "1", features = ["sync", "macros"] }
 serde = { version = "1", features = ["derive"] }
+
+[dev-dependencies]
+uuid = { version = "1", features = ["v4"] }
+serde_json = "1"

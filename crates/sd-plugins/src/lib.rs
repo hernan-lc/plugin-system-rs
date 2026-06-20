@@ -668,3 +668,60 @@ impl From<serde_json::Error> for PluginResultError {
 }
 
 pub type PluginResult<T> = Result<T, PluginResultError>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn plugin_state_default_is_empty() {
+        let state = PluginState::default();
+        assert!(state.disabled.is_empty());
+        assert!(state.is_enabled("anything"));
+    }
+
+    #[test]
+    fn plugin_state_set_enabled() {
+        let mut state = PluginState::default();
+        state.set_enabled("test".to_string(), false);
+        assert!(!state.is_enabled("test"));
+        state.set_enabled("test".to_string(), true);
+        assert!(state.is_enabled("test"));
+    }
+
+    #[test]
+    fn plugin_result_error_display() {
+        let err = PluginResultError::NotFound("x".to_string());
+        assert!(err.to_string().contains("x"));
+        let err = PluginResultError::PluginExists("y".to_string());
+        assert!(err.to_string().contains("y"));
+    }
+
+    #[test]
+    fn derive_plugin_name_strips_prefix() {
+        assert_eq!(derive_plugin_name("libplugin_timer"), "timer");
+        assert_eq!(derive_plugin_name("plugin_timer"), "timer");
+        assert_eq!(derive_plugin_name("plugin-timer"), "timer");
+        assert_eq!(derive_plugin_name("timer"), "timer");
+    }
+
+    #[test]
+    fn plugin_file_stem_format() {
+        let stem = plugin_file_stem("timer");
+        assert!(stem.contains("timer"));
+        assert!(stem.contains("plugin"));
+    }
+
+    #[test]
+    fn validate_uploaded_filename_rejects_bad_input() {
+        assert!(validate_uploaded_filename("").is_err());
+        assert!(validate_uploaded_filename("foo/bar.so").is_err());
+        assert!(validate_uploaded_filename("foo.txt").is_err());
+    }
+
+    #[test]
+    fn validate_plugin_name_rejects_bad_input() {
+        assert!(validate_plugin_name("").is_err());
+        assert!(validate_plugin_name("bad/name").is_err());
+    }
+}

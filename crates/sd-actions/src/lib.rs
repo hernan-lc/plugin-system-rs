@@ -190,3 +190,60 @@ impl Default for ActionRegistry {
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Arc;
+
+    fn test_ctx() -> ActionContext {
+        ActionContext {
+            device_id: DeviceId("test-device".to_string()),
+            button_index: 0,
+            profile_id: ProfileId(uuid::Uuid::new_v4()),
+            state: Arc::new(tokio::sync::RwLock::new(HashMap::new())),
+            events: Arc::new(EventBus::new()),
+        }
+    }
+
+    #[test]
+    fn hotkey_action_metadata() {
+        let action = HotkeyAction::new("Ctrl+C");
+        assert_eq!(action.action_id().0, "hotkey");
+        assert_eq!(action.action_name(), "Send Hotkey");
+        assert_eq!(action.category(), "System");
+    }
+
+    #[test]
+    fn text_action_execute() {
+        let action = TextAction::new("hello");
+        let result = action.execute(&test_ctx());
+        assert_eq!(result.as_string(), Some("Typed: hello"));
+    }
+
+    #[test]
+    fn open_url_action_metadata() {
+        let action = OpenUrlAction::new("https://example.com");
+        assert_eq!(action.action_id().0, "open_url");
+        assert_eq!(action.action_name(), "Open URL");
+    }
+
+    #[test]
+    fn action_registry_register_and_get() {
+        let mut registry = ActionRegistry::new();
+        let action = Arc::new(HotkeyAction::new("A"));
+        registry.register(action.clone());
+        assert!(registry.get("hotkey").is_some());
+        assert!(registry.get("nonexistent").is_none());
+    }
+
+    #[test]
+    fn action_registry_list_by_category() {
+        let mut registry = ActionRegistry::new();
+        registry.register(Arc::new(HotkeyAction::new("A")));
+        registry.register(Arc::new(TextAction::new("B")));
+        let by_cat = registry.list_by_category();
+        assert!(by_cat.contains_key("System"));
+        assert_eq!(by_cat["System"].len(), 2);
+    }
+}

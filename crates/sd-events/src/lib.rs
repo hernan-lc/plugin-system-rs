@@ -118,3 +118,52 @@ impl Default for EventBus {
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    #[test]
+    fn event_bus_new() {
+        let bus = EventBus::new();
+        let _ = bus.tx.send(StreamEvent::PluginLoaded {
+            plugin: "test".to_string(),
+        });
+    }
+
+    #[test]
+    fn event_bus_subscribe_receives_events() {
+        use std::sync::Arc;
+
+        let bus = EventBus::new();
+        let count = Arc::new(AtomicUsize::new(0));
+        let count_clone = count.clone();
+        bus.subscribe("button_pressed", move |_event| {
+            count_clone.fetch_add(1, Ordering::SeqCst);
+        });
+
+        let subs = bus.subscribers.read().unwrap();
+        assert!(subs.contains_key("button_pressed"));
+        assert_eq!(subs["button_pressed"].len(), 1);
+    }
+
+    #[test]
+    fn stream_event_variants_serialize() {
+        let events = vec![
+            StreamEvent::PluginLoaded {
+                plugin: "test".to_string(),
+            },
+            StreamEvent::PluginUnloaded {
+                plugin: "test".to_string(),
+            },
+            StreamEvent::DeviceConnected {
+                device: DeviceId("d".to_string()),
+            },
+        ];
+        for event in &events {
+            let json = serde_json::to_string(event).unwrap();
+            assert!(!json.is_empty());
+        }
+    }
+}

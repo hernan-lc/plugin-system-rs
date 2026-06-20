@@ -10,3 +10,6 @@ serde = { version = "1", features = ["derive"] }
 tokio = { version = "1", features = ["sync"] }
 open = "5"
 log = "0.4"
+
+[dev-dependencies]
+uuid = { version = "1", features = ["v4"] }

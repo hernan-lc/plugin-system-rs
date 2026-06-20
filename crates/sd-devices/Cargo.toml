@@ -6,4 +6,4 @@ edition = "2021"
 [dependencies]
 sd-types = { path = "../sd-types" }
 sd-events = { path = "../sd-events" }
-tokio = { version = "1", features = ["sync"] }
+tokio = { version = "1", features = ["sync", "macros", "rt"] }
