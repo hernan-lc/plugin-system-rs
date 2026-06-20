@@ -190,13 +190,13 @@ fn build_spec(cfg: &ResolvedConfig, platform: &str, source: &Path) -> Result<Str
     s.push_str("\n%install\n");
     s.push_str(&format!("mkdir -p %{{buildroot}}{install_path}\n"));
     s.push_str(&format!(
-        "cp -a %{{name}}-%{{version}}/sd-core %{{buildroot}}{install_path}/\n"
+        "cp -a sd-core %{{buildroot}}{install_path}/\n"
     ));
     s.push_str(&format!(
-        "cp -a %{{name}}-%{{version}}/plugins %{{buildroot}}{install_path}/\n"
+        "cp -a plugins %{{buildroot}}{install_path}/\n"
     ));
     s.push_str(&format!(
-        "cp -a %{{name}}-%{{version}}/web %{{buildroot}}{install_path}/\n"
+        "cp -a web %{{buildroot}}{install_path}/\n"
     ));
     for link in &cfg.linux.symlinks {
         let link = link.trim_start_matches('/');
