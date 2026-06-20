@@ -14,6 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
       - name: Build CLI
         run: cargo build --release -p sd-plugins-cli
       - name: Upload CLI
@@ -32,6 +33,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - uses: dtolnay/rust-toolchain@stable
       - name: Install build & packaging dependencies
         run: |
           sudo apt-get update
@@ -73,6 +75,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-unknown-linux-gnu
       - name: Install cross-compilation tools
         run: |
           sudo dpkg --add-architecture arm64
@@ -103,7 +108,6 @@ jobs:
         run: cd web && npm install && npm run build && cd ..
       - name: Build everything
         run: |
-          rustup target add aarch64-unknown-linux-gnu
           PKG_CONFIG_ALLOW_CROSS=1 \
           PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig:$PKG_CONFIG_PATH \
             ./sd-plugins build --release --target aarch64-unknown-linux-gnu --with-web --with-core
@@ -129,6 +133,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - uses: dtolnay/rust-toolchain@stable
       - name: Build CLI
         run: cargo build --release -p sd-plugins-cli
       - name: Install WiX + NSIS
@@ -176,16 +181,17 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-pc-windows-msvc
       - name: Build CLI
-        run: |
-          rustup target add aarch64-pc-windows-msvc
-          cargo build --release -p sd-plugins-cli --target aarch64-pc-windows-msvc
+        run: cargo build --release -p sd-plugins-cli
       - name: Build web
         run: cd web && npm install && npm run build
       - name: Build everything
         run: |
-          .\target\aarch64-pc-windows-msvc\release\sd-plugins.exe build --release --target aarch64-pc-windows-msvc --with-web --with-core
-          .\target\aarch64-pc-windows-msvc\release\sd-plugins.exe package --version "${{ github.ref_name }}" --platform windows-arm64 --formats zip
+          .\target\release\sd-plugins.exe build --release --target aarch64-pc-windows-msvc --with-web --with-core
+          .\target\release\sd-plugins.exe package --version "${{ github.ref_name }}" --platform windows-arm64 --formats zip
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -206,6 +212,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - uses: dtolnay/rust-toolchain@stable
       - name: Build CLI
         run: cargo build --release -p sd-plugins-cli
       - name: Build web
@@ -270,10 +277,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-apple-darwin
       - name: Build CLI
-        run: |
-          rustup target add x86_64-apple-darwin
-          cargo build --release -p sd-plugins-cli --target x86_64-apple-darwin
+        run: cargo build --release -p sd-plugins-cli --target x86_64-apple-darwin
       - name: Build web
         run: cd web && npm install && npm run build
       - name: Build everything

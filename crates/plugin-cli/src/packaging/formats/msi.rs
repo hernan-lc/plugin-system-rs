@@ -34,8 +34,10 @@ pub fn build(
     fs::create_dir_all(&work)?;
 
     let wxs = work.join("installer.wxs");
-    let mut f = fs::File::create(&wxs)?;
-    f.write_all(build_wxs(cfg, platform, staged).as_bytes())?;
+    {
+        let mut f = fs::File::create(&wxs)?;
+        f.write_all(build_wxs(cfg, platform, staged).as_bytes())?;
+    }
 
     let obj_dir = work.join("obj");
     fs::create_dir_all(&obj_dir)?;

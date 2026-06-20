@@ -224,13 +224,13 @@ fn build_data_tar(root: &Path, out: &Path) -> Result<()> {
     let file = File::create(out)?;
     let gz = GzEncoder::new(file, Compression::default());
     let mut tar = tar::Builder::new(gz);
-    for entry in WalkDir::new(root).into_iter().filter_map(Result::ok) {
+    for entry in WalkDir::new(root).follow_links(false).into_iter().filter_map(Result::ok) {
         let path = entry.path();
         let rel = path.strip_prefix(root).unwrap();
         if rel.as_os_str().is_empty() {
             continue;
         }
-        let archive_path = format!("/{}", rel.to_string_lossy().replace('\\', "/"));
+        let archive_path = rel.to_string_lossy().replace('\\', "/").to_string();
         let metadata = entry.metadata()?;
         let mut header = tar::Header::new_ustar();
         header.set_metadata_in_mode(&metadata, tar::HeaderMode::Deterministic);
@@ -240,7 +240,13 @@ fn build_data_tar(root: &Path, out: &Path) -> Result<()> {
         header.set_groupname("root")?;
         header.set_path(&archive_path)?;
         header.set_cksum();
-        if path.is_dir() {
+        if path.is_symlink() {
+            header.set_entry_type(tar::EntryType::Symlink);
+            header.set_size(0);
+            let target = std::fs::read_link(path)?;
+            header.set_link_name(&target)?;
+            tar.append(&header, std::io::empty())?;
+        } else if path.is_dir() {
             header.set_entry_type(tar::EntryType::Directory);
             header.set_size(0);
             tar.append(&header, std::io::empty())?;
