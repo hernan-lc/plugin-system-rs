@@ -74,26 +74,25 @@ fn build_nsi(cfg: &ResolvedConfig, platform: &str, staged: &Staged) -> String {
         r#"!include "MUI2.nsh"
 !include "FileFunc.nsh"
 
-Name "{name} {version}"
-OutFile "${{OUTPUT}}"
-InstallDir "{install_dir}"
-InstallDirRegKey HKLM "Software\{name}" "InstallDir"
-RequestExecutionLevel admin
-ShowInstDetails show
-ShowUninstDetails show
-
 !define APP_NAME "{name}"
 !define APP_DISPLAY_NAME "{display}"
 !define APP_VERSION "{version}"
 !define APP_PUBLISHER "{publisher}"
 !define APP_EXE "{exe_name}"
 
+Name "${{APP_DISPLAY_NAME}} ${{APP_VERSION}}"
+OutFile "${{OUTPUT}}"
+InstallDir "{install_dir}"
+InstallDirRegKey HKLM "Software\${{APP_NAME}}" "InstallDir"
+RequestExecutionLevel admin
+ShowInstDetails show
+ShowUninstDetails show
+
 !macro MUI_PAGE_INSTALLDIR
   !insertmacro MUI_PAGE_INSTALLDIR
 !macroend
 
 !insertmacro MUI_PAGE_WELCOME
-!insertmacro MUI_PAGE_LICENSE
 !insertmacro MUI_PAGE_DIRECTORY
 !insertmacro MUI_PAGE_INSTFILES
 !insertmacro MUI_PAGE_FINISH
