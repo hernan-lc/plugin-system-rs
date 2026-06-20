@@ -121,18 +121,17 @@ fn build_wxs(cfg: &ResolvedConfig, platform: &str, staged: &Staged) -> String {
     <Package InstallerVersion="500" Compressed="yes" InstallScope="perMachine" Platform="x64"/>
     <MajorUpgrade DowngradeErrorMessage="A newer version is already installed."/>
     <MediaTemplate EmbedCab="yes"/>
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="ProgramFiles64Folder">
+        <Directory Id="INSTALLDIR" Name="{display_name}"/>
+      </Directory>
+    </Directory>
+    <ComponentGroup Id="ProductComponents" Directory="INSTALLDIR">
+{components}
+    </ComponentGroup>
     <Feature Id="ProductFeature" Title="{name}" Level="1">
       <ComponentGroupRef Id="ProductComponents"/>
     </Feature>
-    <Directory Id="TARGETDIR" Name="SourceDir">
-      <Directory Id="ProgramFiles64Folder">
-        <Directory Id="INSTALLDIR" Name="{display_name}">
-          <ComponentGroup Id="ProductComponents">
-{components}
-          </ComponentGroup>
-        </Directory>
-      </Directory>
-    </Directory>
     <UIRef Id="WixUI_Minimal"/>
   </Product>
 </Wix>

@@ -168,7 +168,7 @@ fn build_spec(cfg: &ResolvedConfig, platform: &str, source: &Path) -> Result<Str
     s.push_str(&format!("Summary: {}\n", summary));
     s.push_str(&format!("License: {}\n", cfg.app.license));
     s.push_str(&format!("URL: {}\n", cfg.app.homepage));
-    s.push_str("Source0: %{{name}}-%{{version}}.tar.gz\n");
+    s.push_str("Source0: %{name}-%{version}.tar.gz\n");
     s.push_str(&format!("BuildArch: {arch}\n"));
     s.push_str(&format!("Group: {}\n", rpm.group));
     s.push_str(&format!("Requires: {depends}\n"));
