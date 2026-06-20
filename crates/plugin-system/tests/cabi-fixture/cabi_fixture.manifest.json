@@ -1,0 +1,8 @@
+{
+    "name": "cabi-fixture",
+    "version": "1.2.3",
+    "authors": ["StreamDeck Test Suite"],
+    "dependencies": [],
+    "abi": "c-flat",
+    "interfaces": ["TestInterface"]
+}

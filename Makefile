@@ -39,6 +39,13 @@ help:
 		'  make dev CMD="..."          Watch plugins + auto-rebuild + run command' \
 		'  make dev-release CMD="..."  Same as dev but in release mode' \
 		'' \
+		'Packaging targets:' \
+		'  make package VERSION=0.1.0                       Package for current host (formats from packaging.toml)' \
+		'  make package-all VERSION=0.1.0                   Package for every platform (formats from packaging.toml)' \
+		'  make package-platform PLATFORM=linux-x64 VERSION=0.1.0' \
+		'                                                  Package for one platform' \
+		'  make package-formats VERSION=0.1.0 FORMATS="deb,rpm"  Override formats' \
+		'' \
 		'Tray icon system dependencies:' \
 		'  Arch Linux: pacman -S gtk3 xdotool libappindicator-gtk3' \
 		'  Debian/Ubuntu: apt install libgtk-3-dev libxdo-dev libappindicator3-dev' \
@@ -165,3 +172,42 @@ build-multiplatform: build-linux-x64 build-linux-arm64 build-windows-x64 build-w
 	else \
 		echo 'Skipping macOS targets on $(UNAME_S); run make build-macos-x64 build-macos-arm64 on macOS.'; \
 	fi
+
+# ---- Packaging ----------------------------------------------------------
+
+SD_PLUGINS ?= $(CARGO_TARGET_DIR)/$(PROFILE)/sd-plugins
+
+.PHONY: ensure-cli
+ensure-cli:
+	@if [ ! -x '$(SD_PLUGINS)' ]; then \
+		echo 'Building sd-plugins CLI ($(PROFILE))...'; \
+		$(CARGO) build $(if $(filter release,$(PROFILE)),--release,) -p sd-plugins-cli; \
+	fi
+
+# Package for the current host using packaging.toml defaults
+.PHONY: package
+package: ensure-cli
+	@test -n '$(VERSION)' || (echo 'VERSION is required, e.g. make package VERSION=0.1.0' && exit 1)
+	@CMD='$(SD_PLUGINS) pkg --version $(VERSION)'; \
+	if [ -n '$(FORMATS)' ]; then CMD="$$CMD --formats $(FORMATS)"; fi; \
+	if [ -n '$(PLATFORM)' ]; then CMD="$$CMD --platform $(PLATFORM)"; fi; \
+	echo "Running: $$CMD"; \
+	$$CMD
+
+# Package for every platform using packaging.toml defaults
+.PHONY: package-all
+package-all: ensure-cli
+	@test -n '$(VERSION)' || (echo 'VERSION is required, e.g. make package-all VERSION=0.1.0' && exit 1)
+	$(SD_PLUGINS) pkg --all-platforms --version $(VERSION) $(if $(FORMATS),--formats $(FORMATS),)
+
+.PHONY: package-platform
+package-platform: ensure-cli
+	@test -n '$(PLATFORM)' || (echo 'PLATFORM is required (linux-x64, linux-arm64, windows-x64, windows-arm64, macos-x64, macos-arm64)' && exit 1)
+	@test -n '$(VERSION)' || (echo 'VERSION is required' && exit 1)
+	$(SD_PLUGINS) pkg --platform $(PLATFORM) --version $(VERSION) $(if $(FORMATS),--formats $(FORMATS),)
+
+.PHONY: package-formats
+package-formats: ensure-cli
+	@test -n '$(FORMATS)' || (echo 'FORMATS is required, e.g. FORMATS="deb,rpm,appimage"' && exit 1)
+	@test -n '$(VERSION)' || (echo 'VERSION is required' && exit 1)
+	$(SD_PLUGINS) pkg --version $(VERSION) --formats $(FORMATS) $(if $(PLATFORM),--platform $(PLATFORM),)

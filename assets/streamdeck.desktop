@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=StreamDeck Core
+GenericName=StreamDeck Control Panel
+Comment=Plugin-based StreamDeck control system with web UI
+Exec=sd-core %U
+Icon=streamdeck-core
+Terminal=false
+Categories=Utility;Network;
+Keywords=streamdeck;obs;automation;dashboard;
+StartupNotify=true
+StartupWMClass=StreamDeck Core

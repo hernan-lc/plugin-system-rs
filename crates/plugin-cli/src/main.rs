@@ -8,6 +8,73 @@ use std::process::Command;
 use std::sync::mpsc;
 use std::time::Duration;
 
+mod packaging;
+
+use crate::packaging::format::{parse_format_list, Format};
+
+/// Run a command, transparently resolving `.cmd` / `.bat` shims on Windows
+/// (so `npm`, `npx`, etc. work even when `C:\Program Files\nodejs` isn't on
+/// the current `PATH`).
+fn run_cmd(program: &str, args: &[&str], cwd: Option<&Path>) -> Result<std::process::Output> {
+    let resolved = resolve_program(program);
+    let mut cmd = Command::new(&resolved);
+    cmd.args(args);
+    if let Some(dir) = cwd {
+        cmd.current_dir(dir);
+    }
+    let output = cmd.output().with_context(|| {
+        format!(
+            "failed to spawn `{}` (resolved to `{}`)",
+            program,
+            resolved.display()
+        )
+    })?;
+    Ok(output)
+}
+
+fn resolve_program(program: &str) -> std::path::PathBuf {
+    #[cfg(target_os = "windows")]
+    {
+        // First, try the program as-is (handles absolute paths and programs
+        // already on PATH with an extension like `.exe`).
+        let path = Path::new(program);
+        if path.is_absolute() || program.contains(std::path::MAIN_SEPARATOR) {
+            return path.to_path_buf();
+        }
+        // Otherwise, look up via `where.exe` and try each extension in PATHEXT.
+        if let Some(found) = which_ext(program) {
+            return found;
+        }
+    }
+    PathBuf::from(program)
+}
+
+#[cfg(target_os = "windows")]
+fn which_ext(program: &str) -> Option<PathBuf> {
+    let pathext = std::env::var_os("PATHEXT").unwrap_or_default();
+    let exts: Vec<String> = pathext
+        .to_string_lossy()
+        .split(';')
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string())
+        .collect();
+    // If `program` already has one of the extensions, just return it.
+    let program_upper = program.to_ascii_uppercase();
+    if exts
+        .iter()
+        .any(|e| program_upper.ends_with(&e.to_ascii_uppercase()))
+    {
+        return Some(PathBuf::from(program));
+    }
+    // Look up each `<program><ext>` in PATH.
+    for ext in &exts {
+        if let Ok(found) = which::which(format!("{program}{ext}")) {
+            return Some(found);
+        }
+    }
+    None
+}
+
 #[derive(Parser)]
 #[command(name = "sd-plugins", about = "StreamDeck Plugin Build CLI")]
 struct Cli {
@@ -55,6 +122,28 @@ enum Commands {
         /// Output directory
         #[arg(short, long, default_value = "releases")]
         output: String,
+
+        /// Target platform id (linux-x64, linux-arm64, windows-x64, windows-arm64,
+        /// macos-x64, macos-arm64). Defaults to the host platform.
+        #[arg(short, long)]
+        platform: Option<String>,
+
+        /// Comma-separated list of formats to produce (tar.gz, zip, deb, rpm,
+        /// appimage, msi, nsis, dmg, pkg). Defaults to the formats configured
+        /// in `packaging.toml` for the selected platform.
+        #[arg(short, long, value_delimiter = ',')]
+        formats: Option<Vec<String>>,
+
+        /// Build every platform defined in the matrix using the artifacts that
+        /// already exist in `target/<triple>/release/`. Useful in CI.
+        #[arg(long)]
+        all_platforms: bool,
+
+        /// Build the core + plugins for the requested target triple before
+        /// packaging. Implies `cargo build --release --target <triple>` for the
+        /// host-only case and for the current host.
+        #[arg(long)]
+        build: bool,
     },
 
     /// Validate plugin configurations
@@ -85,7 +174,14 @@ fn main() -> Result<()> {
         } => cmd_build(release, package, target, with_web, with_core),
         Commands::List => cmd_list(),
         Commands::Clean => cmd_clean(),
-        Commands::Package { version, output } => cmd_package(&version, &output),
+        Commands::Package {
+            version,
+            output,
+            platform,
+            formats,
+            all_platforms,
+            build,
+        } => cmd_package(&version, &output, platform, formats, all_platforms, build),
         Commands::Check => cmd_check(),
         Commands::Dev { release, command } => cmd_dev(release, command),
     }
@@ -205,22 +301,12 @@ fn cmd_build(
         println!("{}", "Building web frontend...".yellow());
         let web_dir = workspace_root.join("web");
         if web_dir.exists() {
-            let status = Command::new("npm")
-                .args(["ci"])
-                .current_dir(&web_dir)
-                .status()
-                .context("Failed to run npm ci")?;
-
+            let status = run_cmd("npm", &["ci"], Some(&web_dir))?.status;
             if !status.success() {
                 anyhow::bail!("npm ci failed");
             }
 
-            let status = Command::new("npm")
-                .args(["run", "build"])
-                .current_dir(&web_dir)
-                .status()
-                .context("Failed to run npm build")?;
-
+            let status = run_cmd("npm", &["run", "build"], Some(&web_dir))?.status;
             if !status.success() {
                 anyhow::bail!("npm build failed");
             }
@@ -407,119 +493,144 @@ fn cmd_clean() -> Result<()> {
     Ok(())
 }
 
-fn cmd_package(version: &str, output_dir: &str) -> Result<()> {
+fn cmd_package(
+    version: &str,
+    output_dir: &str,
+    platform: Option<String>,
+    formats: Option<Vec<String>>,
+    all_platforms: bool,
+    build: bool,
+) -> Result<()> {
+    use crate::packaging::format::{is_valid_platform, platform_from_target, PLATFORMS};
+    use crate::packaging::package_release;
+
     let workspace_root = find_workspace_root()?;
-    let plugins = discover_plugins(&workspace_root)?;
     let host_target = get_host_target()?;
 
-    println!("{}", "=== Packaging Release ===".cyan().bold());
+    println!("{}", "=== StreamDeck Packaging ===".cyan().bold());
     println!("Version: {}", version.yellow());
-    println!("Target:  {}", host_target.yellow());
+    println!("Host target: {}", host_target.yellow());
     println!();
 
-    let release_dir = workspace_root.join(output_dir).join(version);
-    let platform_dir = match host_target.as_str() {
-        t if t.contains("linux") && t.contains("x86_64") => "linux-x64",
-        t if t.contains("linux") && t.contains("aarch64") => "linux-arm64",
-        t if t.contains("windows") && t.contains("x86_64") => "windows-x64",
-        t if t.contains("windows") && t.contains("aarch64") => "windows-arm64",
-        t if t.contains("apple") && t.contains("x86_64") => "macos-x64",
-        t if t.contains("apple") && t.contains("aarch64") => "macos-arm64",
-        _ => "unknown",
+    let output_root = workspace_root.join(output_dir).join(version);
+
+    // Determine the list of (platform, source_target, formats) to process
+    let targets: Vec<(String, Option<String>, Vec<Format>)> = if all_platforms {
+        PLATFORMS
+            .iter()
+            .map(|p| {
+                let triple =
+                    crate::packaging::format::platform_default_target(p).map(str::to_string);
+                let fmts = default_formats_for_platform(p, &formats);
+                (p.to_string(), triple, fmts)
+            })
+            .collect()
+    } else {
+        let chosen = platform
+            .or_else(|| platform_from_target(&host_target).map(str::to_string))
+            .context("could not determine platform; pass --platform")?;
+        if !is_valid_platform(&chosen) {
+            anyhow::bail!("unknown platform `{chosen}`; expected one of {PLATFORMS:?}");
+        }
+        let triple = crate::packaging::format::platform_default_target(&chosen).map(str::to_string);
+        let fmts = default_formats_for_platform(&chosen, &formats);
+        vec![(chosen, triple, fmts)]
     };
 
-    let pkg_dir = release_dir.join(platform_dir);
-    let plugins_out = pkg_dir.join("plugins");
+    // Optionally build first
+    if build {
+        for (plat, triple_opt, _) in &targets {
+            let triple = match triple_opt {
+                Some(t) => t.clone(),
+                None => host_target.clone(),
+            };
+            build_for_target(&workspace_root, &triple)?;
+            let _ = plat;
+        }
+        println!();
+    }
 
-    std::fs::create_dir_all(&plugins_out).context("Failed to create release directory")?;
+    let mut total = 0usize;
+    for (plat, triple_opt, fmts) in targets {
+        if fmts.is_empty() {
+            eprintln!(
+                "  {} no formats configured for platform `{}`",
+                "skip:".yellow(),
+                plat
+            );
+            continue;
+        }
+        let platform_dir = output_root.join(&plat);
+        std::fs::create_dir_all(&platform_dir)?;
+        match package_release(
+            &workspace_root,
+            version,
+            &platform_dir,
+            &plat,
+            &fmts,
+            triple_opt.as_deref(),
+        ) {
+            Ok(artifacts) => {
+                total += artifacts.len();
+            }
+            Err(e) => {
+                eprintln!("  {} platform `{}` failed: {e:#}", "error:".red(), plat);
+                return Err(e);
+            }
+        }
+        println!();
+    }
 
-    // Copy sd-core binary
-    let core_ext = if host_target.contains("windows") {
-        ".exe"
-    } else {
-        ""
+    println!(
+        "{} {} artifact(s) produced under {}",
+        "Done.".green().bold(),
+        total.to_string().cyan(),
+        output_root.display()
+    );
+    Ok(())
+}
+
+fn default_formats_for_platform(platform: &str, explicit: &Option<Vec<String>>) -> Vec<Format> {
+    if let Some(list) = explicit {
+        return list
+            .iter()
+            .filter_map(|s| s.parse::<Format>().ok())
+            .collect();
+    }
+    let cfg = match crate::packaging::config::load(&find_workspace_root().unwrap_or_default()) {
+        Ok(c) => c,
+        Err(_) => return vec![Format::TarGz],
     };
-    let core_src = workspace_root
-        .join("target/release")
-        .join(format!("sd-core{}", core_ext));
-    let core_dst = pkg_dir.join(format!("sd-core{}", core_ext));
-
-    if core_src.exists() {
-        std::fs::copy(&core_src, &core_dst)?;
-        println!("  Copied sd-core{}", core_ext);
-    } else {
-        println!(
-            "  {} sd-core not found (build with --with-core)",
-            "Warning:".yellow()
-        );
-    }
-
-    // Copy plugins
-    for plugin in &plugins {
-        let lib_filename = get_plugin_lib_filename(&plugin.lib_name, &host_target);
-        let src = workspace_root.join("target/release").join(&lib_filename);
-        let dst = plugins_out.join(&lib_filename);
-
-        if src.exists() {
-            std::fs::copy(&src, &dst)?;
-            println!("  Copied {}", lib_filename);
-        } else {
-            println!("  {} {} not found", "Warning:".yellow(), lib_filename);
-        }
-    }
-
-    // Copy web frontend
-    let web_src = workspace_root.join("web/dist");
-    let web_dst = pkg_dir.join("web");
-    if web_src.exists() {
-        copy_dir_recursive(&web_src, &web_dst)?;
-        println!("  Copied web/");
-    } else {
-        println!(
-            "  {} web/dist not found (build with --with-web)",
-            "Warning:".yellow()
-        );
-    }
-
-    // Create archive
-    let archive_ext = if host_target.contains("windows") {
-        "zip"
-    } else {
-        "tar.gz"
+    let list = match platform {
+        p if p.starts_with("linux") => &cfg.formats.linux,
+        p if p.starts_with("windows") => &cfg.formats.windows,
+        p if p.starts_with("macos") => &cfg.formats.macos,
+        _ => return vec![Format::TarGz],
     };
-    let archive_name = format!("streamdeck-{}.{}", platform_dir, archive_ext);
+    list.iter()
+        .filter_map(|s| parse_format_list(s).ok())
+        .flatten()
+        .collect()
+}
 
-    if host_target.contains("windows") {
-        let status = Command::new("powershell")
-            .args([
-                "-Command",
-                &format!(
-                    "Compress-Archive -Path '{}' -DestinationPath '{}'",
-                    pkg_dir.display(),
-                    release_dir.join(&archive_name).display()
-                ),
-            ])
-            .status()?;
-        if status.success() {
-            println!("\n  Created {}", archive_name.green().bold());
-        }
-    } else {
-        let status = Command::new("tar")
-            .args([
-                "czf",
-                &release_dir.join(&archive_name).to_string_lossy(),
-                "-C",
-                &release_dir.to_string_lossy(),
-                platform_dir,
-            ])
-            .status()?;
-        if status.success() {
-            println!("\n  Created {}", archive_name.green().bold());
-        }
+fn build_for_target(workspace_root: &Path, triple: &str) -> Result<()> {
+    println!("  {} building for {}...", "build:".yellow(), triple.cyan());
+    let status = Command::new("cargo")
+        .args(["build", "--release", "--target", triple, "-p", "sd-core"])
+        .current_dir(workspace_root)
+        .status()
+        .with_context(|| format!("building sd-core for {triple}"))?;
+    if !status.success() {
+        anyhow::bail!("cargo build for {triple} failed");
     }
-
-    println!("\nRelease packaged in: {}", pkg_dir.display());
-
+    let status = Command::new("cargo")
+        .args(["build", "--release", "--target", triple])
+        .current_dir(workspace_root)
+        .status()
+        .with_context(|| format!("building plugins for {triple}"))?;
+    if !status.success() {
+        anyhow::bail!("cargo build (workspace) for {triple} failed");
+    }
     Ok(())
 }
 
@@ -878,24 +989,6 @@ fn spawn_command(command: &[String]) -> Result<std::process::Child> {
         .context(format!("Failed to spawn command: {}", command.join(" ")))?;
 
     Ok(child)
-}
-
-fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<()> {
-    std::fs::create_dir_all(dst)?;
-
-    for entry in std::fs::read_dir(src)? {
-        let entry = entry?;
-        let src_path = entry.path();
-        let dst_path = dst.join(entry.file_name());
-
-        if src_path.is_dir() {
-            copy_dir_recursive(&src_path, &dst_path)?;
-        } else {
-            std::fs::copy(&src_path, &dst_path)?;
-        }
-    }
-
-    Ok(())
 }
 
 struct PluginInfo {

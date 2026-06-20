@@ -510,12 +510,56 @@ cargo build -p sd-plugins-cli
 # Validate plugin configurations
 ./target/debug/sd-plugins check
 
-# Package for release
-./target/debug/sd-plugins package --version 1.0.0
+# Package for release — produces .tar.gz + .deb + .rpm on Linux
+./target/debug/sd-plugins pkg --version 1.0.0
+
+# Package for one platform with specific formats
+./target/debug/sd-plugins pkg --version 1.0.0 --platform windows-x64 --formats zip,msi,nsis
+
+# Package for every platform whose artifacts exist
+./target/debug/sd-plugins pkg --version 1.0.0 --all-platforms
+
+# Auto-build then package (one shot)
+./target/debug/sd-plugins pkg --version 1.0.0 --platform linux-arm64 --build --formats deb
 
 # Clean build artifacts
 ./target/debug/sd-plugins clean
 ```
+
+Or use Make targets:
+```bash
+make build-plugins          # Build all plugins
+make build-plugins-release  # Build release mode
+make dev CMD="cargo run --bin sd-core"  # Watch + rebuild + run
+make plugins-list           # List plugins
+make plugins-check          # Validate configs
+make plugins-clean          # Clean artifacts
+make package VERSION=1.0.0                            # Package for host
+make package-all VERSION=1.0.0                        # Package for every platform
+make package-platform PLATFORM=linux-x64 VERSION=1.0.0
+make package-formats VERSION=1.0.0 FORMATS="deb,rpm"   # Override formats
+```
+
+#### Supported installer formats
+
+| Format | Platform | Tooling |
+|--------|----------|---------|
+| `.tar.gz` | all | none (pure Rust) |
+| `.zip` | all | none (pure Rust) |
+| `.deb` | Linux | none (pure Rust) |
+| `.rpm` | Linux | `rpmbuild` |
+| `.AppImage` | Linux | `mksquashfs` |
+| `.msi` | Windows | WiX 3.x |
+| `.nsis` (`.exe`) | Windows | NSIS 3.x |
+| `.dmg` | macOS | `hdiutil` |
+| `.pkg` | macOS | `pkgbuild` |
+
+Each release also emits:
+
+- `checksums-sha256.txt` — SHA256 of every artifact
+- `sbom.spdx.json` — SPDX 2.3 SBOM with file checksums
+
+See [`docs/packaging.md`](docs/packaging.md) for the full reference.
 
 Or use Make targets:
 

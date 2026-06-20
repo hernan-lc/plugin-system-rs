@@ -1,8 +1,8 @@
 [package]
 name = "sd-plugins-cli"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
-description = "CLI tool for building and managing StreamDeck plugins"
+description = "CLI tool for building, managing, and packaging StreamDeck plugins"
 
 [[bin]]
 name = "sd-plugins"
@@ -12,8 +12,17 @@ path = "src/main.rs"
 clap = { version = "4", features = ["derive"] }
 cargo_metadata = "0.18"
 serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 toml = "0.8"
 anyhow = "1"
 colored = "2"
 which = "6"
 notify = "7"
+flate2 = "1"
+tar = "0.4"
+zip = { version = "2", default-features = false, features = ["deflate"] }
+sha2 = "0.10"
+hex = "0.4"
+chrono = { version = "0.4", features = ["serde"] }
+walkdir = "2"
+thiserror = "1"

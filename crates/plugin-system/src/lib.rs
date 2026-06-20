@@ -1,3 +1,4 @@
+pub mod cabi;
 pub mod context;
 pub mod error;
 pub mod handler;
@@ -27,5 +28,7 @@ pub use plugin_info::{PluginInfo, PluginResult};
 pub use registry::{new_shared_registry, PluginRegistry, SharedRegistry};
 pub use serde_json;
 pub use traits::{command_to_json, CommandResult, Plugin, PluginDependency, PluginMetadata};
+
+pub use cabi::{is_cabi_manifest, CAbiManifest, CAbiPlugin};
 
 pub use plugin_macros::{command, define_plugin, plugin_export, plugin_interface};

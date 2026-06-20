@@ -1,0 +1,78 @@
+# packaging.toml — StreamDeck Core packaging configuration
+#
+# Loaded by `sd-plugins pkg` to control the per-platform artifact format and
+# installer metadata. All fields are optional; sensible defaults are used when
+# omitted.
+
+[app]
+name = "streamdeck-core"
+display_name = "StreamDeck Core"
+version = "0.1.0"
+description = "Plugin-based StreamDeck control system"
+long_description = """
+StreamDeck Core is a plugin-based StreamDeck control system with a web UI,
+built in Rust. Control OBS, system volume, keyboard shortcuts, and more from
+a browser-based dashboard.
+"""
+license = "MIT"
+homepage = "https://github.com/yourusername/streamdeck-core"
+maintainer_name = "StreamDeck Team"
+maintainer_email = "[email protected]"
+categories = ["Utility", "Network"]
+keywords = ["streamdeck", "obs", "automation", "dashboard"]
+
+[linux]
+binary_name = "sd-core"
+install_path = "/opt/streamdeck-core"
+symlinks = ["/usr/bin/sd-core"]
+desktop_file = "assets/streamdeck.desktop"
+icon_file = "assets/icon.png"
+
+[linux.deb]
+section = "utils"
+priority = "optional"
+depends = ["libc6 (>= 2.31)"]
+
+[linux.rpm]
+group = "Applications/System"
+depends = ["glibc >= 2.31"]
+summary = "Plugin-based StreamDeck control system"
+
+[linux.appimage]
+update_string = "gh-releases-zsync|yourusername|streamdeck-core|latest|streamdeck-*x86_64.AppImage.zsync"
+
+[macos]
+binary_name = "sd-core"
+app_name = "StreamDeck Core"
+bundle_id = "com.streamdeck.core"
+icon = "assets/icon.icns"
+
+[macos.dmg]
+volume_name = "StreamDeck Core"
+background = "assets/dmg-background.png"
+
+[macos.pkg]
+identifier = "com.streamdeck.core.pkg"
+install_location = "/Applications"
+
+[windows]
+binary_name = "sd-core.exe"
+display_name = "StreamDeck Core"
+publisher = "StreamDeck Team"
+
+[windows.msi]
+manufacturer = "StreamDeck Team"
+# Replace with a stable GUID for your product (Generate with `uuidgen` or
+# PowerShell `[guid]::NewGuid()`). Keep this stable across releases.
+upgrade_code = "{12345678-1234-1234-1234-123456789012}"
+install_dir = ""
+
+[windows.nsis]
+publisher = "StreamDeck Team"
+install_dir = ""
+
+# Default formats produced per platform when --formats is not specified.
+[formats]
+linux = ["tar.gz", "deb", "rpm"]
+windows = ["zip", "msi"]
+macos = ["tar.gz", "dmg"]

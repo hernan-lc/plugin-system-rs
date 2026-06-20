@@ -2,6 +2,8 @@
 /target/
 /dist/
 /releases/
+# Test fixture build outputs (separate from main /target/)
+/crates/plugin-system/tests/cabi-fixture/target/
 web/dist/
 web/package-lock.json
 
@@ -33,3 +35,4 @@ coverage/
 data/dashboard.json
 macos-sdk/
 *.dll
+data/plugin-state.json

@@ -11,10 +11,19 @@ members = [
     "crates/sd-plugins",
     "crates/sd-core",
     "crates/plugin-cli",
+    "crates/plugin-system/tests/cabi-fixture",
     "plugins/plugin-timer",
     "plugins/plugin-system-monitor",
     "plugins/plugin-key-simulator",
     "plugins/plugin-volume-master",
     "plugins/plugin-obs",
+]
+exclude = [
+    "target",
+    "data",
+    "web",
+    "docs",
+    "scripts",
+    "releases",
 ]
 resolver = "2"

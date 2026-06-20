@@ -39,7 +39,9 @@ fn prefix_from_path(path: &Path) -> Option<String> {
 }
 
 struct LoadedPlugin {
-    _lib: libloading::Library,
+    /// For Rust plugins: keeps the dynamic library loaded.
+    /// For C-ABI plugins: `None` (the `CAbiPlugin` holds the library).
+    _lib: Option<libloading::Library>,
     path: PathBuf,
     metadata: PluginMetadata,
     temp_path: Option<PathBuf>,
@@ -340,6 +342,14 @@ impl PluginManager {
 
         log::info!("Loading plugin from {}", path_display);
 
+        // Detect C-ABI ("c-flat") plugin via sidecar *.manifest.json before
+        // resolving Rust trait-object symbols, since a C plugin will not
+        // export the same shape.
+        if let Some(cabi_manifest) = detect_cabi_manifest(original_path.unwrap_or(&path))? {
+            log::info!("Detected C-ABI (c-flat) manifest for {}", path_display);
+            return self.load_cabi_plugin(&path, &cabi_manifest, original_path);
+        }
+
         let lib = unsafe {
             libloading::Library::new(&path).map_err(|e| PluginError::LibraryLoad {
                 path: path.clone(),
@@ -467,7 +477,7 @@ impl PluginManager {
         }
 
         let loaded_plugin = LoadedPlugin {
-            _lib: lib,
+            _lib: Some(lib),
             path: path.clone(),
             metadata,
             temp_path: None,
@@ -737,6 +747,111 @@ impl PluginManager {
         }
         infos
     }
+
+    // ---- C-ABI ("c-flat") plugin loading ----------------------------------
+
+    /// Load a C-ABI plugin via the sidecar manifest.
+    fn load_cabi_plugin(
+        &mut self,
+        path: &Path,
+        manifest: &crate::cabi::CAbiManifest,
+        original_path: Option<&Path>,
+    ) -> Result<String> {
+        // Open the library and hand ownership to the CAbiPlugin.
+        let lib =
+            unsafe { libloading::Library::new(path) }.map_err(|e| PluginError::LibraryLoad {
+                path: path.to_path_buf(),
+                reason: e.to_string(),
+            })?;
+
+        // Derive the same prefix the Rust path uses, so prefixed C symbols
+        // (e.g. `plugin_myplugin_handle_command`) are found.
+        let prefix = prefix_from_path(original_path.unwrap_or(path));
+
+        let cabi = crate::cabi::CAbiPlugin::from_library(lib, manifest, prefix.as_deref())
+            .map_err(|e| PluginError::PluginLoad {
+                name: "<c-abi>".into(),
+                reason: e,
+            })?;
+
+        let metadata = cabi.metadata().clone();
+        let name = metadata.name.clone();
+
+        // Dependency check
+        {
+            let registry = self.read_registry(self.registry.read(), "PluginRegistry")?;
+            for dep in &metadata.dependencies {
+                if !registry.contains(dep.name.as_str()) {
+                    return Err(PluginError::MissingDependency {
+                        plugin: name.clone(),
+                        dependency: dep.name.clone(),
+                    });
+                }
+            }
+        }
+
+        let boxed: Box<dyn Plugin> = Box::new(cabi);
+
+        if self.loaded.contains_key(&name) {
+            self.unload_plugin(&name)?;
+        }
+        {
+            let mut registry = self.write_registry(self.registry.write(), "PluginRegistry")?;
+            registry.register(boxed);
+        }
+
+        let loaded_plugin = LoadedPlugin {
+            _lib: None, // CAbiPlugin owns its own library
+            path: path.to_path_buf(),
+            metadata,
+            temp_path: None,
+        };
+        self.loaded.insert(name.clone(), loaded_plugin);
+
+        // Invoke on_load
+        {
+            let ctx = PluginContext::new(self.registry.clone(), self.command_registry.clone());
+            let registry = self.read_registry(self.registry.read(), "PluginRegistry")?;
+            if let Some(plugin_arc) = registry.get_by_name(&name) {
+                let mut plugin = self.write_plugin(plugin_arc.write(), &name)?;
+                plugin.on_load(&ctx);
+            }
+        }
+
+        log::info!("C-ABI plugin '{}' loaded successfully", name);
+        Ok(name)
+    }
+}
+
+/// Inspect the sidecar `<lib>.manifest.json` and return the parsed
+/// [`crate::cabi::CAbiManifest`] if it declares `"abi": "c-flat"` (or
+/// `"c_abi"`). Returns `Ok(None)` when no manifest is present or when the
+/// manifest doesn't enable the C-ABI path.
+fn detect_cabi_manifest(lib_path: &Path) -> Result<Option<crate::cabi::CAbiManifest>> {
+    let stem = match lib_path.file_stem().and_then(|s| s.to_str()) {
+        Some(s) => s,
+        None => return Ok(None),
+    };
+    let parent = lib_path.parent().unwrap_or_else(|| Path::new(""));
+    let manifest_path = parent.join(format!("{stem}.manifest.json"));
+    if !manifest_path.exists() {
+        return Ok(None);
+    }
+    let bytes = std::fs::read(&manifest_path).map_err(PluginError::Io)?;
+    let value: serde_json::Value =
+        serde_json::from_slice(&bytes).map_err(|e| PluginError::PluginLoad {
+            name: stem.to_string(),
+            reason: format!("invalid manifest JSON: {e}"),
+        })?;
+    if !crate::cabi::is_cabi_manifest(&value) {
+        return Ok(None);
+    }
+    let manifest: crate::cabi::CAbiManifest =
+        serde_json::from_value(value).map_err(|e| PluginError::PluginLoad {
+            name: stem.to_string(),
+            reason: format!("invalid C-ABI manifest: {e}"),
+        })?;
+    Ok(Some(manifest))
 }
 
 impl Default for PluginManager {
