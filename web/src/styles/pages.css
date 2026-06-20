@@ -1,5 +1,15 @@
 /* Plugins */
 .plugins-page { display: flex; flex-direction: column; gap: 2rem; }
+.plugin-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.page-help {
+  margin: 0.25rem 0 0;
+  color: var(--text-muted);
+}
 .plugin-list { display: flex; flex-direction: column; gap: 0.75rem; }
 .plugin-item {
   background: var(--bg-card);
@@ -12,6 +22,17 @@
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
+}
+.plugin-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.plugin-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
 }
 .plugin-name {
   color: #00d4ff;
@@ -60,6 +81,62 @@
 }
 .reload-btn:hover:not(:disabled) { opacity: 0.8; }
 .reload-btn:disabled { cursor: not-allowed; opacity: 0.7; }
+.plugin-upload-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem 1.5rem;
+}
+.plugin-upload-card h3 {
+  margin: 0 0 1rem;
+}
+.plugin-upload-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.inline-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text-muted);
+}
+.primary-btn,
+.secondary-btn {
+  border: none;
+  border-radius: 4px;
+  padding: 0.6rem 1rem;
+  font-weight: bold;
+  cursor: pointer;
+}
+.primary-btn {
+  background: #00d4ff;
+  color: #000;
+}
+.secondary-btn {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+.primary-btn:disabled,
+.secondary-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+.plugin-message,
+.plugin-error,
+.plugin-file-name {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+.plugin-message {
+  color: #00e39d;
+}
+.plugin-error {
+  color: #ff7e5f;
+}
+
 
 /* Toggle switch */
 .switch {
@@ -115,7 +192,12 @@ input:disabled + .slider {
     padding: 0.75rem;
   }
   .plugin-header {
-    flex-wrap: wrap;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .plugin-controls {
+    width: 100%;
+    justify-content: flex-start;
   }
   .plugin-meta {
     flex-direction: column;

@@ -44,6 +44,52 @@ export async function fetchPlugins(): Promise<PluginStatus[]> {
   return (data.data || []) as PluginStatus[];
 }
 
+async function readPluginResponse<T>(res: Response): Promise<T> {
+  const data = await res.json();
+  if (!res.ok || !data.success) {
+    throw new Error(data.error || "Plugin request failed");
+  }
+  return data.data as T;
+}
+
+export async function refreshPlugins(): Promise<PluginStatus[]> {
+  const res = await fetch(`${API_BASE}/plugins/refresh`, {
+    method: "POST",
+  });
+  await readPluginResponse<unknown>(res);
+  return fetchPlugins();
+}
+
+export async function uploadPluginFile(file: File, enabled: boolean): Promise<PluginStatus> {
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("enabled", String(enabled));
+
+  const res = await fetch(`${API_BASE}/plugins/upload`, {
+    method: "POST",
+    body: formData,
+  });
+  return readPluginResponse<PluginStatus>(res);
+}
+
+export async function updatePluginFile(
+  pluginName: string,
+  file: File,
+  enabled?: boolean,
+): Promise<PluginStatus> {
+  const formData = new FormData();
+  formData.append("file", file);
+  if (enabled !== undefined) {
+    formData.append("enabled", String(enabled));
+  }
+
+  const res = await fetch(`${API_BASE}/plugins/${encodeURIComponent(pluginName)}/update`, {
+    method: "POST",
+    body: formData,
+  });
+  return readPluginResponse<PluginStatus>(res);
+}
+
 export async function reloadPlugins() {
   const res = await fetch(`${API_BASE}/plugins/reload`, {
     method: "POST",

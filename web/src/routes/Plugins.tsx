@@ -1,12 +1,25 @@
 import { h } from 'preact';
 import { useState, useEffect } from 'preact/hooks';
-import { fetchPlugins, setPluginEnabled } from '../lib/api';
+import {
+  fetchPlugins,
+  refreshPlugins,
+  setPluginEnabled,
+  uploadPluginFile,
+  updatePluginFile,
+} from '../lib/api';
 import type { PluginStatus } from '../lib/types';
 
 export function Plugins() {
   const [plugins, setPlugins] = useState<PluginStatus[]>([]);
   const [loading, setLoading] = useState(false);
   const [toggling, setToggling] = useState<string | null>(null);
+  const [installing, setInstalling] = useState(false);
+  const [updating, setUpdating] = useState<string | null>(null);
+  const [installFile, setInstallFile] = useState<File | null>(null);
+  const [installEnabled, setInstallEnabled] = useState(true);
+  const [updateFiles, setUpdateFiles] = useState<Record<string, File>>({});
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     loadPlugins();
@@ -14,11 +27,27 @@ export function Plugins() {
 
   async function loadPlugins() {
     setLoading(true);
+    setError(null);
     try {
       const plugins = await fetchPlugins();
       setPlugins(plugins);
     } catch (error) {
-      console.error('Failed to load plugins:', error);
+      setError(toErrorMessage(error));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleRefresh() {
+    setLoading(true);
+    setMessage(null);
+    setError(null);
+    try {
+      const plugins = await refreshPlugins();
+      setPlugins(plugins);
+      setMessage('Plugins refreshed');
+    } catch (error) {
+      setError(toErrorMessage(error));
     } finally {
       setLoading(false);
     }
@@ -30,48 +59,184 @@ export function Plugins() {
       await setPluginEnabled(plugin.name, !plugin.enabled);
       await loadPlugins();
     } catch (error) {
-      console.error('Failed to toggle plugin:', error);
+      setError(toErrorMessage(error));
     } finally {
       setToggling(null);
     }
   }
 
+  function handleInstallFile(event: Event) {
+    const input = event.target as HTMLInputElement;
+    setInstallFile(input.files?.[0] ?? null);
+  }
+
+  async function handleInstall() {
+    if (!installFile) {
+      return;
+    }
+
+    setInstalling(true);
+    setMessage(null);
+    setError(null);
+    try {
+      await uploadPluginFile(installFile, installEnabled);
+      setInstallFile(null);
+      setMessage('Plugin installed');
+      await loadPlugins();
+    } catch (error) {
+      setError(toErrorMessage(error));
+    } finally {
+      setInstalling(false);
+    }
+  }
+
+  function handleUpdateFile(pluginName: string, event: Event) {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    setUpdateFiles(current => ({
+      ...current,
+      [pluginName]: file,
+    }));
+  }
+
+  async function handleUpdate(plugin: PluginStatus) {
+    const file = updateFiles[plugin.name];
+    if (!file) {
+      return;
+    }
+
+    setUpdating(plugin.name);
+    setMessage(null);
+    setError(null);
+    try {
+      await updatePluginFile(plugin.name, file, plugin.enabled);
+      const nextFiles = { ...updateFiles };
+      delete nextFiles[plugin.name];
+      setUpdateFiles(nextFiles);
+      setMessage('Plugin updated');
+      await loadPlugins();
+    } catch (error) {
+      setError(toErrorMessage(error));
+    } finally {
+      setUpdating(null);
+    }
+  }
+
+  function statusLabel(plugin: PluginStatus) {
+    if (plugin.loaded) {
+      return 'Loaded';
+    }
+    return plugin.enabled ? 'Not loaded' : 'Disabled';
+  }
+
+  function fileName(path: string) {
+    return path.split(/[\\/]/).pop() ?? path;
+  }
+
   return h('div', { class: 'plugins-page' },
-    h('h2', null, 'Plugins'),
-    h('button', {
-      class: 'reload-btn',
-      onClick: loadPlugins,
-      disabled: loading || toggling !== null,
-    }, loading ? 'Loading...' : 'Reload'),
+    h('section', { class: 'plugin-actions' },
+      h('div', null,
+        h('h2', null, 'Plugins'),
+        h('p', { class: 'page-help' }, 'Install, update, enable, or disable native plugins.')
+      ),
+      h('button', {
+        class: 'reload-btn',
+        onClick: handleRefresh,
+        disabled: loading || installing || updating !== null || toggling !== null,
+      }, loading ? 'Loading...' : 'Refresh')
+    ),
+
+    message ? h('div', { class: 'plugin-message' }, message) : null,
+    error ? h('div', { class: 'plugin-error' }, error) : null,
+
+    h('section', { class: 'plugin-upload-card' },
+      h('h3', null, 'Install plugin'),
+      h('div', { class: 'plugin-upload-row' },
+        h('input', {
+          type: 'file',
+          accept: pluginAccept(),
+          onChange: handleInstallFile,
+        }),
+        h('label', { class: 'inline-checkbox' },
+          h('input', {
+            type: 'checkbox',
+            checked: installEnabled,
+            onChange: () => setInstallEnabled(!installEnabled),
+          }),
+          'Enable after install'
+        ),
+        h('button', {
+          class: 'primary-btn',
+          onClick: handleInstall,
+          disabled: installing || !installFile,
+        }, installing ? 'Installing...' : 'Install')
+      ),
+      installFile ? h('p', { class: 'plugin-file-name' }, installFile.name) : null
+    ),
+
     h('div', { class: 'plugin-list' },
       plugins.length === 0
-        ? h('p', null, 'No plugins found. Place .so/.dll files in ./plugins directory.')
+        ? h('p', null, 'No plugins found. Install a .so/.dll/.dylib plugin file or place one in the plugin directory.')
         : plugins.map(plugin =>
             h('div', { class: 'plugin-item', key: plugin.name },
               h('div', { class: 'plugin-header' },
-                h('span', { class: 'plugin-name' }, plugin.name),
-                plugin.version
-                  ? h('span', { class: 'plugin-version' }, `v${plugin.version}`)
-                  : null,
-                h('label', { class: 'switch' },
+                h('div', { class: 'plugin-title' },
+                  h('span', { class: 'plugin-name' }, plugin.name),
+                  plugin.version
+                    ? h('span', { class: 'plugin-version' }, `v${plugin.version}`)
+                    : null
+                ),
+                h('div', { class: 'plugin-controls' },
+                  h('label', { class: 'switch' },
+                    h('input', {
+                      type: 'checkbox',
+                      checked: plugin.enabled,
+                      disabled: toggling !== null || installing || updating !== null,
+                      onChange: () => handleToggle(plugin),
+                    }),
+                    h('span', { class: 'slider' })
+                  ),
                   h('input', {
-                    type: 'checkbox',
-                    checked: plugin.enabled,
-                    disabled: toggling !== null,
-                    onChange: () => handleToggle(plugin),
+                    id: `plugin-update-${plugin.name}`,
+                    type: 'file',
+                    accept: pluginAccept(),
+                    style: { display: 'none' },
+                    onChange: event => handleUpdateFile(plugin.name, event),
                   }),
-                  h('span', { class: 'slider' })
+                  h('button', {
+                    class: 'secondary-btn',
+                    onClick: () => {
+                      const input = document.getElementById(`plugin-update-${plugin.name}`);
+                      input?.click();
+                    },
+                    disabled: installing || updating !== null || toggling !== null,
+                  }, updating === plugin.name ? 'Updating...' : 'Update')
                 )
               ),
               h('div', { class: 'plugin-meta' },
                 h('span', {
                   class: `plugin-status ${plugin.loaded ? 'loaded' : 'not-loaded'
                   }`,
-                }, plugin.loaded ? 'Loaded' : 'Disabled'),
-                h('span', { class: 'plugin-path' }, plugin.path.split(/[\\/]/).pop() ?? plugin.path)
+                }, statusLabel(plugin)),
+                h('span', { class: 'plugin-path' }, fileName(plugin.path)),
+                updateFiles[plugin.name]
+                  ? h('span', { class: 'plugin-file-name' }, updateFiles[plugin.name].name)
+                  : null
               )
             )
           )
     )
   );
+}
+
+function pluginAccept() {
+  return '.dll,.so,.dylib';
+}
+
+function toErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
 }

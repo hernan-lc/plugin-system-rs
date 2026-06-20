@@ -6,6 +6,7 @@ use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::RwLock;
 
 fn plugin_state_path() -> PathBuf {
@@ -267,6 +268,196 @@ impl SdPluginManager {
         Ok(())
     }
 
+    pub async fn refresh_plugins_from_dir(&self) -> PluginResult<Vec<String>> {
+        let state = PluginState::load()?;
+        self.load_enabled_plugins_from_dir_with_state(&state).await
+    }
+
+    pub async fn install_plugin_file(
+        &self,
+        bytes: &[u8],
+        filename: &str,
+        enabled: bool,
+    ) -> PluginResult<PluginStatus> {
+        validate_uploaded_filename(filename)?;
+
+        let dir = self.plugin_dir_path();
+        fs::create_dir_all(&dir)?;
+
+        let temp_path = self.temp_plugin_path(filename);
+        fs::write(&temp_path, bytes)?;
+
+        let metadata = PluginManager::metadata_from_path(&temp_path)
+            .map_err(|e| PluginResultError::PluginLoad(e.to_string()))?;
+        validate_plugin_name(&metadata.name)?;
+
+        let final_path = self.plugin_file_path(&metadata.name);
+        if final_path.exists() {
+            let _ = fs::remove_file(&temp_path);
+            return Err(PluginResultError::PluginExists(metadata.name));
+        }
+
+        fs::rename(&temp_path, &final_path)?;
+
+        let mut state = PluginState::load()?;
+        state.set_enabled(metadata.name.clone(), enabled);
+        state.save()?;
+
+        let mut manager = self.plugin_manager.write().await;
+        if enabled {
+            manager.load_plugin(&final_path)?;
+        }
+        self.plugin_status_from_manager(&manager, &metadata.name)
+    }
+
+    pub async fn update_plugin_file(
+        &self,
+        plugin_name: &str,
+        bytes: &[u8],
+        filename: &str,
+        enabled: Option<bool>,
+    ) -> PluginResult<PluginStatus> {
+        validate_uploaded_filename(filename)?;
+
+        let mut manager = self.plugin_manager.write().await;
+        let mut state = PluginState::load()?;
+        let existing_path = manager
+            .plugin_path(plugin_name)
+            .or_else(|| Some(self.find_plugin_path(plugin_name)));
+        let existing_path = match existing_path {
+            Some(path) if path.exists() => path,
+            _ => return Err(PluginResultError::NotFound(plugin_name.to_string())),
+        };
+
+        let target_name = PluginManager::metadata_from_path(&existing_path)
+            .map(|metadata| metadata.name)
+            .unwrap_or(plugin_name.to_string());
+        validate_plugin_name(&target_name)?;
+
+        let was_loaded = manager.is_loaded(&target_name) || manager.is_loaded(plugin_name);
+        let was_enabled = state.is_enabled(&target_name) || state.is_enabled(plugin_name);
+        if was_loaded {
+            manager
+                .unload_plugin(&target_name)
+                .or_else(|_| manager.unload_plugin(plugin_name))?;
+        }
+
+        let dir = self.plugin_dir_path();
+        fs::create_dir_all(&dir)?;
+
+        let temp_path = self.temp_plugin_path(filename);
+        fs::write(&temp_path, bytes)?;
+
+        let metadata = PluginManager::metadata_from_path(&temp_path)
+            .map_err(|e| PluginResultError::PluginLoad(e.to_string()))?;
+        validate_plugin_name(&metadata.name)?;
+
+        let final_path = self.plugin_file_path(&metadata.name);
+        if final_path.exists() && final_path != existing_path {
+            let _ = fs::remove_file(&temp_path);
+            return Err(PluginResultError::PluginExists(metadata.name));
+        }
+
+        let backup_path = self.backup_plugin_path(&existing_path);
+        let keep_enabled = enabled.unwrap_or(was_enabled);
+        if existing_path.exists() {
+            if let Err(e) = fs::rename(&existing_path, &backup_path) {
+                if was_loaded {
+                    let _ = manager.load_plugin(&existing_path);
+                }
+                let _ = fs::remove_file(&temp_path);
+                return Err(PluginResultError::Io(e.to_string()));
+            }
+        }
+
+        if let Err(e) = fs::rename(&temp_path, &final_path) {
+            if backup_path.exists() {
+                let _ = fs::rename(&backup_path, &existing_path);
+            }
+            if was_loaded {
+                let _ = manager.load_plugin(&existing_path);
+            }
+            return Err(PluginResultError::Io(e.to_string()));
+        }
+
+        state.set_enabled(target_name.clone(), false);
+        state.set_enabled(metadata.name.clone(), keep_enabled);
+        if let Err(e) = state.save() {
+            let _ = fs::remove_file(&final_path);
+            if backup_path.exists() {
+                let _ = fs::rename(&backup_path, &existing_path);
+            }
+            if was_loaded {
+                let _ = manager.load_plugin(&existing_path);
+            }
+            return Err(e);
+        }
+
+        let load_result = if keep_enabled {
+            manager.load_plugin(&final_path)
+        } else {
+            Ok(String::new())
+        };
+
+        match load_result {
+            Ok(_) => {
+                let _ = fs::remove_file(&backup_path);
+                self.plugin_status_from_manager(&manager, &metadata.name)
+            }
+            Err(e) => {
+                let _ = fs::remove_file(&final_path);
+                if backup_path.exists() {
+                    let _ = fs::rename(&backup_path, &existing_path);
+                }
+                state.set_enabled(target_name.clone(), was_enabled);
+                let _ = state.save();
+                if was_loaded {
+                    let _ = manager.load_plugin(&existing_path);
+                }
+                Err(PluginResultError::PluginLoad(e.to_string()))
+            }
+        }
+    }
+
+    pub fn plugin_dir(&self) -> &str {
+        &self.plugin_dir
+    }
+
+    fn plugin_dir_path(&self) -> PathBuf {
+        PathBuf::from(&self.plugin_dir)
+    }
+
+    fn plugin_file_path(&self, name: &str) -> PathBuf {
+        self.plugin_dir_path()
+            .join(format!("{}.{}", plugin_file_stem(name), plugin_extension()))
+    }
+
+    fn temp_plugin_path(&self, filename: &str) -> PathBuf {
+        let stem = Path::new(filename)
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("plugin");
+        self.plugin_dir_path().join(format!(
+            ".{}.{}.tmp.{}",
+            stem,
+            unique_suffix(),
+            plugin_extension()
+        ))
+    }
+
+    fn backup_plugin_path(&self, path: &Path) -> PathBuf {
+        let stem = path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("plugin");
+        path.with_file_name(format!(
+            "{}.{}.bak.{}",
+            stem,
+            unique_suffix(),
+            plugin_extension()
+        ))
+    }
+
     pub fn plugin_manager(&self) -> Arc<RwLock<PluginManager>> {
         self.plugin_manager.clone()
     }
@@ -368,12 +559,77 @@ fn derive_plugin_name(stem: &str) -> String {
     }
 }
 
+fn plugin_file_stem(name: &str) -> String {
+    let normalized = name.replace('-', "_");
+    if cfg!(target_os = "linux") || cfg!(target_os = "macos") {
+        format!("libplugin_{}", normalized)
+    } else {
+        format!("plugin_{}", normalized)
+    }
+}
+
+fn validate_uploaded_filename(filename: &str) -> PluginResult<()> {
+    if filename.is_empty()
+        || filename.contains('/')
+        || filename.contains('\\')
+        || filename.contains(':')
+    {
+        return Err(PluginResultError::InvalidInput(
+            "Invalid plugin filename".to_string(),
+        ));
+    }
+
+    let extension = Path::new(filename)
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .unwrap_or_default();
+    if extension != plugin_extension() {
+        return Err(PluginResultError::InvalidInput(format!(
+            "Plugin file must use .{} on this platform",
+            plugin_extension()
+        )));
+    }
+
+    if Path::new(filename)
+        .file_stem()
+        .and_then(|stem| stem.to_str())
+        .unwrap_or_default()
+        .is_empty()
+    {
+        return Err(PluginResultError::InvalidInput(
+            "Plugin filename is missing a file stem".to_string(),
+        ));
+    }
+
+    Ok(())
+}
+
+fn validate_plugin_name(name: &str) -> PluginResult<()> {
+    if name.is_empty() || name.contains('/') || name.contains('\\') || name.contains(':') {
+        return Err(PluginResultError::InvalidInput(
+            "Invalid plugin metadata name".to_string(),
+        ));
+    }
+
+    Ok(())
+}
+
+fn unique_suffix() -> String {
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_nanos())
+        .unwrap_or_default();
+    format!("{}.{}", std::process::id(), nanos)
+}
+
 #[derive(Debug)]
 pub enum PluginResultError {
     Io(String),
     Json(String),
     NotFound(String),
     PluginLoad(String),
+    InvalidInput(String),
+    PluginExists(String),
 }
 
 impl std::fmt::Display for PluginResultError {
@@ -385,6 +641,8 @@ impl std::fmt::Display for PluginResultError {
                 write!(f, "Plugin '{name}' not found in directory scan")
             }
             PluginResultError::PluginLoad(err) => write!(f, "Plugin load failed: {err}"),
+            PluginResultError::InvalidInput(err) => write!(f, "Invalid plugin input: {err}"),
+            PluginResultError::PluginExists(name) => write!(f, "Plugin '{name}' already exists"),
         }
     }
 }

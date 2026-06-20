@@ -62,7 +62,13 @@ pub fn create_router(state: AppState) -> Router {
             post(hotkeys::reset_hotkey_recording),
         )
         .route("/api/plugins", get(plugins::list_plugins))
+        .route("/api/plugins/upload", post(plugins::upload_plugin))
+        .route("/api/plugins/refresh", post(plugins::refresh_plugins))
         .route("/api/plugins/reload", post(plugins::reload_plugins))
+        .route(
+            "/api/plugins/:plugin_name/update",
+            post(plugins::update_plugin),
+        )
         .route("/api/plugins/:plugin_name", get(plugins::get_plugin_data))
         .route(
             "/api/plugins/:plugin_name/enabled",
