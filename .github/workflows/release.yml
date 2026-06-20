@@ -122,6 +122,8 @@ jobs:
     name: Build Windows x64
     runs-on: windows-latest
     needs: build-cli
+    env:
+      HAS_WINDOWS_CERT: ${{ secrets.WINDOWS_CERT_BASE64 != '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -144,7 +146,7 @@ jobs:
           .\sd-plugins.exe build --release --with-web --with-core
           .\sd-plugins.exe pkg --version "${{ github.ref_name }}" --platform windows-x64 --formats zip,msi,nsis
       - name: Sign binaries (optional)
-        if: env.WINDOWS_CERT_BASE64 != ''
+        if: env.HAS_WINDOWS_CERT == 'true'
         shell: pwsh
         run: |
           # Decode cert from secret
@@ -204,6 +206,8 @@ jobs:
     name: Build macOS arm64
     runs-on: macos-latest
     needs: build-cli
+    env:
+      HAS_MACOS_CERT: ${{ secrets.MACOS_CERT_BASE64 != '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -221,7 +225,7 @@ jobs:
           ./sd-plugins build --release --with-web --with-core
           ./sd-plugins pkg --version "${{ github.ref_name }}" --platform macos-arm64 --formats tar.gz,dmg,pkg
       - name: Sign + notarize (optional)
-        if: env.MACOS_CERT_BASE64 != ''
+        if: env.HAS_MACOS_CERT == 'true'
         run: |
           # Decode .p12 from secret
           mkdir -p ~/private_keys
@@ -305,7 +309,11 @@ jobs:
     name: Sign Linux packages
     runs-on: ubuntu-latest
     needs: [build-linux-x64, build-linux-arm64]
-    if: ${{ secrets.GPG_PRIVATE_KEY != '' }}
+    env:
+      HAS_GPG_KEY: ${{ secrets.GPG_PRIVATE_KEY != '' }}
+      GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+      GPG_KEY_ID: ${{ secrets.GPG_KEY_ID }}
+    if: env.HAS_GPG_KEY == 'true'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
@@ -341,9 +349,6 @@ jobs:
         with:
           name: streamdeck-linux-arm64
           path: streamdeck-linux-arm64
-    env:
-      GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
-      GPG_KEY_ID: ${{ secrets.GPG_KEY_ID }}
 
   release:
     name: Publish GitHub Release
