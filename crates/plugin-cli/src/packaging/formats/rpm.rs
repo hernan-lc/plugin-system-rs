@@ -201,14 +201,14 @@ fn build_spec(cfg: &ResolvedConfig, platform: &str, source: &Path) -> Result<Str
     for link in &cfg.linux.symlinks {
         let link = link.trim_start_matches('/');
         s.push_str(&format!(
-            "mkdir -p %{{buildroot}}{dir}\n",
+            "mkdir -p %{{buildroot}}/{dir}\n",
             dir = std::path::Path::new(link)
                 .parent()
                 .map(|p| p.to_string_lossy().to_string())
                 .unwrap_or_default()
         ));
         s.push_str(&format!(
-            "ln -s {install_path}/sd-core %{{buildroot}}{link}\n"
+            "ln -s {install_path}/sd-core %{{buildroot}}/{link}\n"
         ));
     }
     s.push_str("\n%files\n");
@@ -218,7 +218,7 @@ fn build_spec(cfg: &ResolvedConfig, platform: &str, source: &Path) -> Result<Str
     for link in &cfg.linux.symlinks {
         s.push_str(&format!("{link}\n"));
     }
-    s.push_str("%doc README.md LICENSE CHANGELOG.md\n");
+    s.push_str("%doc README.md CHANGELOG.md\n");
     s.push_str("\n%changelog\n");
     s.push_str(&format!(
         "* {date} {maintainer} - {version}-1\n- Automated build by sd-plugins-cli\n",

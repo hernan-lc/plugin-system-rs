@@ -38,7 +38,7 @@ pub fn build(
     f.write_all(build_nsi(cfg, platform, staged).as_bytes())?;
 
     let status = Command::new("makensis")
-        .args(["/DOUTPUT=".into(), artifact.to_string_lossy().to_string()])
+        .arg(format!("/DOUTPUT={}", artifact.to_string_lossy()))
         .arg("/V2")
         .arg(nsi.to_str().unwrap())
         .status();
