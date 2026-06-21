@@ -7,6 +7,7 @@ edition = "2021"
 sd-types = { path = "../sd-types" }
 sd-events = { path = "../sd-events" }
 sd-actions = { path = "../sd-actions" }
+sd-paths = { path = "../sd-paths" }
 plugin-system = { path = "../plugin-system" }
 tokio = { version = "1", features = ["sync"] }
 log = "0.4"

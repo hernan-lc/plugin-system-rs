@@ -3062,6 +3062,7 @@ dependencies = [
  "sd-actions",
  "sd-devices",
  "sd-events",
+ "sd-paths",
  "sd-plugins",
  "sd-profiles",
  "sd-types",
@@ -3088,6 +3089,7 @@ dependencies = [
  "sd-api",
  "sd-devices",
  "sd-events",
+ "sd-paths",
  "sd-plugins",
  "sd-profiles",
  "sd-types",
@@ -3121,6 +3123,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "sd-paths"
+version = "0.1.0"
+
+[[package]]
 name = "sd-plugins"
 version = "0.1.0"
 dependencies = [
@@ -3128,6 +3134,7 @@ dependencies = [
  "plugin-system",
  "sd-actions",
  "sd-events",
+ "sd-paths",
  "sd-types",
  "serde",
  "serde_json",

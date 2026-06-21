@@ -7,6 +7,7 @@ members = [
     "crates/sd-actions",
     "crates/sd-profiles",
     "crates/sd-devices",
+    "crates/sd-paths",
     "crates/sd-api",
     "crates/sd-plugins",
     "crates/sd-core",

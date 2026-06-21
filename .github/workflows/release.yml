@@ -161,6 +161,19 @@ jobs:
           .\target\release\sd-plugins.exe package --version "${{ github.ref_name }}" --platform windows-x64 --formats zip,msi,nsis
         env:
           WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+      - name: Smoke-test zip artifact
+        shell: pwsh
+        run: |
+          $zip = Get-ChildItem -Path "releases\*\windows-x64\*.zip" | Select-Object -First 1
+          if (-not $zip) { throw "no windows-x64 zip produced" }
+          Write-Host "Smoke-testing $($zip.FullName)"
+          $tmp = New-Item -ItemType Directory -Path "$env:TEMP\sd-smoke-$([guid]::NewGuid())"
+          Expand-Archive -Path $zip.FullName -DestinationPath $tmp
+          $exe = Get-ChildItem -Path $tmp -Recurse -Filter "sd-core.exe" | Select-Object -First 1
+          if (-not $exe) { throw "sd-core.exe not found in zip" }
+          $marker = Get-ChildItem -Path $tmp -Recurse -Filter "platform.txt" | Select-Object -First 1
+          if (-not $marker) { throw "platform.txt not found in zip" }
+          Write-Host "Contents OK: $($exe.FullName), platform=$([IO.File]::ReadAllText($marker.FullName).Trim())"
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -172,10 +185,12 @@ jobs:
             releases/*/windows-x64/checksums-sha256.txt
             releases/*/windows-x64/sbom.spdx.json
 
-  # Windows arm64: zip only
+  # Windows arm64: zip + msi (cross-compiled on windows-latest x64 runner)
   build-windows-arm64:
     name: Build Windows arm64
     runs-on: windows-latest
+    env:
+      HAS_WINDOWS_CERT: ${{ secrets.WINDOWS_CERT_BASE64 != '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -184,20 +199,58 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-pc-windows-msvc
+      - name: Install WiX + NSIS
+        run: |
+          choco install --no-progress wixtoolset nsis -y
+          echo "C:\Program Files (x86)\WiX Toolset v3.14\bin" >> $env:GITHUB_PATH
+          echo "C:\Program Files (x86)\NSIS\Bin" >> $env:GITHUB_PATH
       - name: Build CLI
         run: cargo build --release -p sd-plugins-cli
       - name: Build web
         run: cd web && npm install && npm run build
       - name: Build everything
+        shell: pwsh
         run: |
           .\target\release\sd-plugins.exe build --release --target aarch64-pc-windows-msvc --with-web --with-core
-          .\target\release\sd-plugins.exe package --version "${{ github.ref_name }}" --platform windows-arm64 --formats zip
+          .\target\release\sd-plugins.exe package --version "${{ github.ref_name }}" --platform windows-arm64 --formats zip,msi
+      - name: Sign binaries (optional)
+        if: env.HAS_WINDOWS_CERT == 'true'
+        shell: pwsh
+        run: |
+          $bytes = [Convert]::FromBase64String($env:WINDOWS_CERT_BASE64)
+          $pfxPath = "$env:TEMP\codesign.pfx"
+          [IO.File]::WriteAllBytes($pfxPath, $bytes)
+          Get-ChildItem -Path "target\packaging\windows-arm64\stage" -Recurse -Include *.exe,*.dll | ForEach-Object {
+            & signtool sign /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 /f $pfxPath /p "$env:WINDOWS_CERT_PASSWORD" $_.FullName
+          }
+          .\target\release\sd-plugins.exe package --version "${{ github.ref_name }}" --platform windows-arm64 --formats zip,msi
+        env:
+          WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+      - name: Smoke-test zip artifact
+        shell: pwsh
+        run: |
+          $zip = Get-ChildItem -Path "releases\*\windows-arm64\*.zip" | Select-Object -First 1
+          if (-not $zip) { throw "no windows-arm64 zip produced" }
+          Write-Host "Smoke-testing $($zip.FullName)"
+          $tmp = New-Item -ItemType Directory -Path "$env:TEMP\sd-smoke-$([guid]::NewGuid())"
+          Expand-Archive -Path $zip.FullName -DestinationPath $tmp
+          $exe = Get-ChildItem -Path $tmp -Recurse -Filter "sd-core.exe" | Select-Object -First 1
+          if (-not $exe) { throw "sd-core.exe not found in zip" }
+          $marker = Get-ChildItem -Path $tmp -Recurse -Filter "platform.txt" | Select-Object -First 1
+          if (-not $marker) { throw "platform.txt not found in zip" }
+          $markerContents = [IO.File]::ReadAllText($marker.FullName).Trim()
+          Write-Host "Contents OK: $($exe.FullName), platform=$markerContents"
+          if ($markerContents -notmatch "windows-arm64") {
+            throw "platform.txt does not declare windows-arm64: $markerContents"
+          }
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: streamdeck-windows-arm64
           path: |
             releases/*/windows-arm64/*.zip
+            releases/*/windows-arm64/*.msi
+            releases/*/windows-arm64/*.exe
             releases/*/windows-arm64/checksums-sha256.txt
             releases/*/windows-arm64/sbom.spdx.json
 

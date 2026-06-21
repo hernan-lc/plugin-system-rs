@@ -19,6 +19,19 @@ use crate::packaging::stage::Staged;
 
 use super::artifact_name;
 
+/// WiX `-arch` value and `Package/@Platform` value for a packaging
+/// platform id. Both are case-insensitive in WiX but we normalize to
+/// lowercase to keep the .wxs output stable across builds.
+fn msi_arch(platform: &str) -> Result<&'static str> {
+    match platform {
+        "windows-x64" => Ok("x64"),
+        "windows-arm64" => Ok("arm64"),
+        other => anyhow::bail!(
+            "platform `{other}` is not a Windows MSI target; expected `windows-x64` or `windows-arm64`"
+        ),
+    }
+}
+
 pub fn build(
     cfg: &ResolvedConfig,
     staged: &Staged,
@@ -33,10 +46,12 @@ pub fn build(
     }
     fs::create_dir_all(&work)?;
 
+    let arch = msi_arch(platform)?;
+
     let wxs = work.join("installer.wxs");
     {
         let mut f = fs::File::create(&wxs)?;
-        f.write_all(build_wxs(cfg, platform, staged).as_bytes())?;
+        f.write_all(build_wxs(cfg, platform, staged, arch).as_bytes())?;
     }
 
     let obj_dir = work.join("obj");
@@ -44,7 +59,7 @@ pub fn build(
     let candle = Command::new("candle")
         .args([
             "-arch",
-            "x64",
+            arch,
             "-out",
             obj_dir.join("installer.wixobj").to_str().unwrap(),
             wxs.to_str().unwrap(),
@@ -78,7 +93,7 @@ pub fn build(
     Ok(vec![artifact])
 }
 
-fn build_wxs(cfg: &ResolvedConfig, platform: &str, staged: &Staged) -> String {
+fn build_wxs(cfg: &ResolvedConfig, platform: &str, staged: &Staged, arch: &str) -> String {
     let manufacturer = &cfg.windows.msi.manufacturer;
     let product_id = "*";
     let upgrade_code = if cfg.windows.msi.upgrade_code.is_empty() {
@@ -118,7 +133,7 @@ fn build_wxs(cfg: &ResolvedConfig, platform: &str, staged: &Staged) -> String {
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
   <Product Name="{name}" Version="{version}" Manufacturer="{manufacturer}"
            Id="{product_id}" UpgradeCode="{upgrade_code}" Language="1033">
-    <Package InstallerVersion="500" Compressed="yes" InstallScope="perMachine" Platform="x64"/>
+    <Package InstallerVersion="500" Compressed="yes" InstallScope="perMachine" Platform="{arch}"/>
     <MajorUpgrade DowngradeErrorMessage="A newer version is already installed."/>
     <MediaTemplate EmbedCab="yes"/>
     <Directory Id="TARGETDIR" Name="SourceDir">
@@ -127,7 +142,7 @@ fn build_wxs(cfg: &ResolvedConfig, platform: &str, staged: &Staged) -> String {
       </Directory>
     </Directory>
     <ComponentGroup Id="ProductComponents" Directory="INSTALLDIR">
-{components}
+ {components}
     </ComponentGroup>
     <Feature Id="ProductFeature" Title="{name}" Level="1">
       <ComponentGroupRef Id="ProductComponents"/>
@@ -142,6 +157,7 @@ fn build_wxs(cfg: &ResolvedConfig, platform: &str, staged: &Staged) -> String {
         product_id = product_id,
         upgrade_code = upgrade_code,
         display_name = xml_escape(&display_name),
+        arch = arch,
         components = component_lines.join("\n"),
     )
 }
@@ -158,4 +174,22 @@ fn xml_escape(s: &str) -> String {
         .replace('>', "&gt;")
         .replace('"', "&quot;")
         .replace('\'', "&apos;")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn msi_arch_maps_known_platforms() {
+        assert_eq!(msi_arch("windows-x64").unwrap(), "x64");
+        assert_eq!(msi_arch("windows-arm64").unwrap(), "arm64");
+    }
+
+    #[test]
+    fn msi_arch_rejects_non_windows_platforms() {
+        assert!(msi_arch("linux-x64").is_err());
+        assert!(msi_arch("macos-arm64").is_err());
+        assert!(msi_arch("").is_err());
+    }
 }

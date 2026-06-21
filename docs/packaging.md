@@ -29,7 +29,7 @@ Artifacts land in `releases/<version>/<platform>/` along with a
 | `linux-x64` | `x86_64-unknown-linux-gnu` | `tar.gz`, `deb`, `rpm` |
 | `linux-arm64` | `aarch64-unknown-linux-gnu` | `tar.gz`, `deb` |
 | `windows-x64` | `x86_64-pc-windows-msvc` | `zip`, `msi` |
-| `windows-arm64` | `aarch64-pc-windows-msvc` | `zip` |
+| `windows-arm64` | `aarch64-pc-windows-msvc` | `zip`, `msi` |
 | `macos-x64` | `x86_64-apple-darwin` | `tar.gz`, `dmg` |
 | `macos-arm64` | `aarch64-apple-darwin` | `tar.gz`, `dmg` |
 
@@ -153,3 +153,60 @@ To package a single platform locally:
 ```bash
 make package-platform PLATFORM=linux-x64 VERSION=0.1.0
 ```
+
+## Runtime path resolution
+
+When `sd-core` starts it must locate three things:
+
+* The **plugins** directory (`plugin_*.dll` / `libplugin_*.so` / `*.dylib`).
+* The **web frontend** (`index.html` and assets).
+* A writable directory for **per-user state** (PID lock file, plugin-state
+  json, uploaded plugins).
+
+The lookup is centralised in the `sd-paths` crate so the MSI, the portable
+zip, and a dev `cargo run` all behave the same way.
+
+### Plugin and web lookup order
+
+1. Explicit env-var override: `SD_PLUGIN_DIR` / `SD_WEB_DIST`.
+2. The directory containing the running executable — `…/sd-core.exe` →
+   `…/plugins/`, `…/web/`. This is the layout used by both the MSI
+   installer and the portable zip.
+3. `…/bin/` and `…/share/` siblings — for installers that split binaries
+   from assets.
+4. The current working directory — the legacy dev layout.
+
+The first candidate that exists on disk is used. If none exist, the
+highest-priority candidate is created when the binary writes to it (e.g.
+uploading a new plugin).
+
+### Per-user state
+
+* Windows: `%LOCALAPPDATA%\sd-core\` (with `%APPDATA%\sd-core\` as
+  fallback). Subdirectories: `state\` (pid lock, runtime state) and the
+  data root (plugin-state.json, uploaded plugins).
+* macOS: `~/Library/Application Support/sd-core/`.
+* Linux: `$XDG_STATE_HOME/sd-core/` then
+  `$XDG_DATA_HOME/sd-core/` then `~/.local/state/sd-core/`.
+
+Override with `SD_DATA_DIR` / `SD_STATE_DIR` / `SD_CORE_PID_LOCK` env vars.
+
+### Self-describing archives
+
+Every archive (zip, tar.gz, deb, rpm, msi, …) contains a top-level
+`platform.txt` next to the executable, e.g.:
+
+```
+platform=windows-x64
+target_triple=x86_64-pc-windows-msvc
+```
+
+This is what the GitHub release smoke-test step uses to confirm the
+artifact was packaged for the intended architecture before publishing.
+
+### "This app can't run on your PC"
+
+If Windows shows this dialog when launching `sd-core.exe`, you almost
+certainly downloaded the **arm64** build on an **x64** system (or vice
+versa). Check `platform.txt` inside the zip, and grab the matching arch
+from the GitHub release page.

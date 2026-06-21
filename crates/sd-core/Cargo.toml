@@ -15,6 +15,7 @@ sd-profiles = { path = "../sd-profiles" }
 sd-devices = { path = "../sd-devices" }
 sd-api = { path = "../sd-api" }
 sd-plugins = { path = "../sd-plugins" }
+sd-paths = { path = "../sd-paths" }
 axum = "0.7"
 tokio = { version = "1", features = ["full"] }
 log = "0.4"

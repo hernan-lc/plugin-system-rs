@@ -3,6 +3,7 @@ use axum::{
     routing::{get, post, put},
     Router,
 };
+use sd_paths::resolve_web_dist;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::services::ServeDir;
 use tower_http::trace::TraceLayer;
@@ -21,8 +22,16 @@ pub fn create_router(state: AppState) -> Router {
         .allow_methods(Any)
         .allow_headers(Any);
 
-    let web_dist = std::env::var("SD_WEB_DIST").unwrap_or_else(|_| "web/dist".to_string());
-    let web_dist_path = std::path::PathBuf::from(&web_dist);
+    // Honour an explicit override, otherwise probe a sequence of likely
+    // locations (exe-relative first, then CWD-relative). This makes the
+    // router work whether sd-core was launched from the install dir, the
+    // Start Menu, or a dev checkout.
+    let web_dist = std::env::var("SD_WEB_DIST")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(resolve_web_dist);
+    let web_dist_path = web_dist.clone();
 
     let static_files =
         ServeDir::new(&web_dist).not_found_service(get(move |_: axum::extract::Request| {

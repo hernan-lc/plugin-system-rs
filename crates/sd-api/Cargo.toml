@@ -10,6 +10,7 @@ sd-actions = { path = "../sd-actions" }
 sd-profiles = { path = "../sd-profiles" }
 sd-devices = { path = "../sd-devices" }
 sd-plugins = { path = "../sd-plugins" }
+sd-paths = { path = "../sd-paths" }
 plugin-system = { path = "../plugin-system" }
 axum = { version = "0.7", features = ["ws", "json", "multipart"] }
 tokio = { version = "1", features = ["full"] }

@@ -1,6 +1,7 @@
 use plugin_system::{serde_json, PluginManager};
 use sd_actions::ActionRegistry;
 use sd_events::EventBus;
+use sd_paths::mutable_data_dir;
 use sd_types::ActionId;
 use std::collections::{HashMap, HashSet};
 use std::fs;
@@ -10,7 +11,12 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::RwLock;
 
 fn plugin_state_path() -> PathBuf {
-    PathBuf::from("data").join("plugin-state.json")
+    if let Ok(p) = std::env::var("SD_PLUGIN_STATE") {
+        if !p.is_empty() {
+            return PathBuf::from(p);
+        }
+    }
+    mutable_data_dir().join("plugin-state.json")
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -75,7 +81,11 @@ impl SdPluginManager {
             action_registry,
             events,
             plugin_actions: Arc::new(RwLock::new(HashMap::new())),
-            plugin_dir: "./plugins".to_string(),
+            // Default to the same path resolution sd-core uses: look for an
+            // existing plugins/ near the executable, then fall back to CWD.
+            plugin_dir: sd_paths::resolve_plugin_dir()
+                .to_string_lossy()
+                .into_owned(),
         }
     }
 

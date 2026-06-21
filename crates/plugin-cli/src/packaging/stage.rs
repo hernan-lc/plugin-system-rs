@@ -163,6 +163,7 @@ pub fn stage_release(
     // 5) Copy platform assets (.desktop, icon, etc.) and top-level docs
     copy_assets(workspace_root, cfg, platform, &assets_dir)?;
     copy_top_level_docs(workspace_root, &stage_dir)?;
+    write_platform_marker(&stage_dir, platform, &target_triple)?;
 
     Ok(Staged {
         root: stage_dir,
@@ -171,6 +172,21 @@ pub fn stage_release(
         web_dir,
         assets_dir,
     })
+}
+
+/// Write a small `platform.txt` into the stage root so every archive
+/// (zip, tar.gz, deb, rpm, msi, …) is self-describing. This makes it
+/// trivial to tell `streamdeck-core-windows-arm64.zip` apart from
+/// `streamdeck-core-windows-x64.zip` after extraction, and lets the
+/// runtime log which arch it was packaged for.
+fn write_platform_marker(stage_dir: &Path, platform: &str, target_triple: &str) -> Result<()> {
+    let path = stage_dir.join("platform.txt");
+    let body = format!(
+        "platform={platform}\ntarget_triple={target_triple}\n",
+    );
+    std::fs::write(&path, body)
+        .with_context(|| format!("writing platform marker {}", path.display()))?;
+    Ok(())
 }
 
 fn copy_assets(

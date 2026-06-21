@@ -4,6 +4,7 @@ use std::collections::BTreeMap;
 use std::path::Path;
 
 use anyhow::{Context, Result};
+use colored::Colorize;
 use serde::{Deserialize, Serialize};
 
 /// Raw TOML schema for `packaging.toml` at workspace root.
@@ -433,6 +434,23 @@ pub fn resolve(cfg: PackagingConfig, version: &str, platform: &str) -> Result<Re
         msi: cfg.windows.msi,
         nsis: cfg.windows.nsis,
     };
+
+    // Warn if the user is still shipping with the documented placeholder
+    // upgrade code. This is a strong signal that they forgot to generate
+    // a real GUID for their product, which means Windows cannot
+    // distinguish major upgrades of this MSI from any other product and
+    // reinstalls will collide.
+    const PLACEHOLDER_UPGRADE_CODE: &str = "{12345678-1234-1234-1234-123456789012}";
+    if windows.msi.upgrade_code.is_empty()
+        || windows.msi.upgrade_code == PLACEHOLDER_UPGRADE_CODE
+    {
+        eprintln!(
+            "{} [windows.msi].upgrade_code is unset or still the placeholder {PLACEHOLDER_UPGRADE_CODE}. \
+             Generate a stable GUID (e.g. `uuidgen` / PowerShell `[guid]::NewGuid()`) and set it in \
+             packaging.toml, otherwise Windows will treat every reinstall as a new product.",
+            "warning:".yellow(),
+        );
+    }
 
     let mut by_platform: BTreeMap<String, Vec<String>> = BTreeMap::new();
     by_platform.insert("linux-x64".into(), cfg.formats.linux.clone());

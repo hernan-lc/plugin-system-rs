@@ -2,6 +2,9 @@ use sd_actions::{ActionRegistry, HotkeyAction, OpenUrlAction, TextAction};
 use sd_api::{create_router, load_dashboard_config, AppState};
 use sd_devices::{DeviceManager, VirtualDevice};
 use sd_events::EventBus;
+use sd_paths::resolve_plugin_dir;
+#[cfg(not(target_os = "windows"))]
+use sd_paths::user_state_dir;
 use sd_plugins::SdPluginManager;
 use sd_profiles::ProfileManager;
 use std::fs::{self, OpenOptions};
@@ -70,7 +73,10 @@ async fn main() -> Result<()> {
     device_manager.add_device(virtual_device).await;
     println!("Added virtual device with 15 buttons");
 
-    let plugin_dir = std::env::var("SD_PLUGIN_DIR").unwrap_or_else(|_| "./plugins".to_string());
+    let plugin_dir = std::env::var("SD_PLUGIN_DIR")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| resolve_plugin_dir().to_string_lossy().into_owned());
 
     let plugin_manager = Arc::new(
         SdPluginManager::new(events.clone(), action_registry.clone())
@@ -241,25 +247,40 @@ fn pid_lock_path() -> PathBuf {
         return PathBuf::from(path);
     }
 
-    if let Ok(runtime_dir) = std::env::var("XDG_RUNTIME_DIR") {
-        return PathBuf::from(runtime_dir)
-            .join("sd-core")
-            .join("sd-core.pid.lock");
+    // On every platform we prefer a per-user, persistent location so we
+    // don't race with temp-dir cleanup or reboot. The env-var driven
+    // fallbacks are evaluated unconditionally; the function at the bottom
+    // uses #[cfg] only for the final "last resort" fallback path.
+
+    // Windows: %LOCALAPPDATA% > %APPDATA% > %TEMP%
+    #[cfg(target_os = "windows")]
+    {
+        if let Ok(local) = std::env::var("LOCALAPPDATA").map(PathBuf::from) {
+            if local.is_dir() {
+                return local.join("sd-core/state/sd-core.pid.lock");
+            }
+        }
+        if let Ok(appdata) = std::env::var("APPDATA").map(PathBuf::from) {
+            if appdata.is_dir() {
+                return appdata.join("sd-core/state/sd-core.pid.lock");
+            }
+        }
+        std::env::temp_dir().join("sd-core/sd-core.pid.lock")
     }
 
-    let uid = std::fs::read_to_string("/proc/self/status")
-        .ok()
-        .and_then(|contents| {
-            contents
-                .lines()
-                .find(|line| line.starts_with("Uid:"))
-                .and_then(|line| line.split_whitespace().nth(1).map(str::to_string))
-        })
-        .unwrap_or_else(|| "unknown".to_string());
+    // Linux: $XDG_RUNTIME_DIR > user_state_dir (which uses $XDG_STATE_HOME, etc.)
+    #[cfg(target_os = "linux")]
+    {
+        if let Ok(runtime_dir) = std::env::var("XDG_RUNTIME_DIR") {
+            return PathBuf::from(runtime_dir)
+                .join("sd-core/sd-core.pid.lock");
+        }
+    }
 
-    std::env::temp_dir()
-        .join(format!("sd-core-{uid}"))
-        .join("sd-core.pid.lock")
+    #[cfg(not(target_os = "windows"))]
+    {
+        return user_state_dir().join("sd-core.pid.lock");
+    }
 }
 
 fn pid_is_running(pid: u32) -> bool {
