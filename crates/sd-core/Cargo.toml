@@ -21,8 +21,8 @@ log = "0.4"
 env_logger = "0.11"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-tray-icon = "0.24"
-muda = "0.19"
+tray-icon = { version = "0.24", default-features = false, features = ["gtk"] }
+muda = { version = "0.19", default-features = false, features = ["gtk"] }
 tao = "0.34"
 image = { version = "0.25", default-features = false, features = ["png"] }
 open = "5"
