@@ -17,4 +17,5 @@ pub struct AppState {
     pub device_manager: Arc<DeviceManager>,
     pub plugin_manager: Arc<SdPluginManager>,
     pub dashboard_config: Arc<RwLock<DashboardLayout>>,
+    pub http_client: reqwest::Client,
 }

@@ -88,6 +88,14 @@ export const WIDGET_CATALOG: {
     defaultColSpan: 1,
     defaultRowSpan: 1,
   },
+  {
+    type: "fetch",
+    label: "Fetch Data",
+    icon: "F",
+    description: "Fetch and display data",
+    defaultColSpan: 1,
+    defaultRowSpan: 1,
+  },
 ];
 
 export function generateId(): string {
@@ -106,6 +114,7 @@ export function getDefaultVariant(type: WidgetType): string {
     "obs-control": "compact",
     "obs-scenes": "compact",
     "obs-inputs": "compact",
+    fetch: "compact",
   };
   return variants[type] || "compact";
 }
@@ -142,6 +151,12 @@ export function getDefaultSettings(type: WidgetType): Record<string, any> {
       break;
     case "obs-inputs":
       settings.refreshInterval = 2000;
+      break;
+    case "fetch":
+      settings.url = "";
+      settings.mode = "proxy";
+      settings.method = "GET";
+      settings.refreshInterval = 30000;
       break;
   }
   return settings;

@@ -104,6 +104,7 @@ async fn main() -> Result<()> {
         device_manager,
         plugin_manager,
         dashboard_config,
+        http_client: reqwest::Client::new(),
     };
 
     let events_clone = events.clone();

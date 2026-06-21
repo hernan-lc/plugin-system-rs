@@ -7,6 +7,7 @@ pub(crate) mod hotkeys;
 pub(crate) mod obs;
 pub(crate) mod plugins;
 pub(crate) mod profiles;
+pub(crate) mod proxy;
 pub(crate) mod router;
 pub(crate) mod system;
 pub(crate) mod volume;

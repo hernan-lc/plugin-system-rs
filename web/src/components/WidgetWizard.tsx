@@ -328,6 +328,45 @@ function WizardConfig({
             set("refreshInterval", parseInt((e.target as HTMLInputElement).value) || 2000),
         }),
       ),
+    widget.type === "fetch" &&
+      h(
+        "div",
+        { class: "wizard-field" },
+        h("label", null, "URL"),
+        h("input", {
+          type: "text",
+          value: settings.url || "",
+          placeholder: "https://api.example.com/data",
+          onInput: (e: Event) => set("url", (e.target as HTMLInputElement).value),
+        }),
+        h("label", null, "Fetch Mode"),
+        h("select", {
+          value: settings.mode || "proxy",
+          onChange: (e: Event) => set("mode", (e.target as HTMLSelectElement).value),
+        },
+          h("option", { value: "local" }, "Local (Browser)"),
+          h("option", { value: "proxy" }, "Proxy (Backend)")
+        ),
+        h("label", null, "HTTP Method"),
+        h("select", {
+          value: settings.method || "GET",
+          onChange: (e: Event) => set("method", (e.target as HTMLSelectElement).value),
+        },
+          h("option", { value: "GET" }, "GET"),
+          h("option", { value: "POST" }, "POST"),
+          h("option", { value: "PUT" }, "PUT"),
+          h("option", { value: "DELETE" }, "DELETE")
+        ),
+        h("label", null, "Refresh Interval (ms)"),
+        h("input", {
+          type: "number",
+          min: "1000",
+          step: "1000",
+          value: String(settings.refreshInterval || 30000),
+          onInput: (e: Event) =>
+            set("refreshInterval", parseInt((e.target as HTMLInputElement).value) || 30000),
+        }),
+      ),
   );
 }
 
@@ -888,6 +927,29 @@ function VariantPreview({ type, variant }: { type: string; variant: string }) {
               }),
             ),
             h("div", null, "75%"),
+          );
+      }
+    case "fetch":
+      switch (variant) {
+        case "minimal":
+          return h(
+            "div",
+            { class: "variant-preview fetch-minimal" },
+            h("div", { class: "mini-status ok" }, "200"),
+          );
+        case "compact":
+          return h(
+            "div",
+            { class: "variant-preview fetch-compact" },
+            h("div", { class: "mini-url" }, "api.ex..."),
+            h("div", { class: "mini-data" }, '{"id":1...}'),
+          );
+        case "detailed":
+          return h(
+            "div",
+            { class: "variant-preview fetch-detailed" },
+            h("div", { class: "mini-url" }, "https://api.example.com/v1"),
+            h("div", { class: "mini-json" }, '{\n  "status": "ok",\n  "data": [...]\n}'),
           );
       }
     default:

@@ -67,7 +67,8 @@ export type WidgetType =
   | "volume-apps"
   | "obs-control"
   | "obs-scenes"
-  | "obs-inputs";
+  | "obs-inputs"
+  | "fetch";
 
 export interface WidgetConfig {
   id: string;
@@ -101,6 +102,26 @@ export const WIDGET_VARIANTS: {
         value: "detailed",
         label: "Detailed",
         description: "Full stats with swap, cores, uptime",
+      },
+    ],
+  },
+  {
+    type: "fetch",
+    variants: [
+      {
+        value: "minimal",
+        label: "Minimal",
+        description: "Just the status code or brief value",
+      },
+      {
+        value: "compact",
+        label: "Compact",
+        description: "Status + URL + small preview",
+      },
+      {
+        value: "detailed",
+        label: "Detailed",
+        description: "Full response body preview",
       },
     ],
   },

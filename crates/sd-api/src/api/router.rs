@@ -10,8 +10,8 @@ use tower_http::trace::TraceLayer;
 
 use crate::{
     api::{
-        actions, dashboard_handlers, devices, hotkeys, obs, plugins, profiles, system, volume,
-        websocket,
+        actions, dashboard_handlers, devices, hotkeys, obs, plugins, profiles, proxy, system,
+        volume, websocket,
     },
     state::AppState,
 };
@@ -121,6 +121,7 @@ pub fn create_router(state: AppState) -> Router {
             "/api/dashboard",
             get(dashboard_handlers::get_dashboard).put(dashboard_handlers::save_dashboard),
         )
+        .route("/api/proxy", post(proxy::proxy_handler))
         .route("/ws", get(websocket::websocket_handler))
         .nest_service("/", static_files)
         .layer(cors)
