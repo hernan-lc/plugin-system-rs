@@ -42,6 +42,14 @@
   align-items: center;
   gap: 0.25rem;
   position: relative;
+  cursor: pointer;
+}
+.wizard-step-indicator:hover .wizard-step-circle {
+  border-color: #00d4ff;
+  color: #00d4ff;
+}
+.wizard-step-indicator:hover .wizard-step-label {
+  color: var(--text-muted);
 }
 .wizard-step-indicator::after {
   content: '';

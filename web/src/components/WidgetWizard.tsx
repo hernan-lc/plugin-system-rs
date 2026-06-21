@@ -66,6 +66,7 @@ export function WidgetWizard({
             {
               class: `wizard-step-indicator ${i === step ? "active" : i < step ? "done" : ""}`,
               key: label,
+              onClick: () => setStep(i),
             },
             h("div", { class: "wizard-step-circle" }, label[0]),
             h("div", { class: "wizard-step-label" }, label),
