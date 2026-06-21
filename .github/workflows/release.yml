@@ -366,8 +366,21 @@ jobs:
         run: |
           mkdir -p release-staging
           for d in streamdeck-*; do
+            [ -d "$d" ] || continue
             find "$d" -type f -exec cp --parents {} release-staging/ \;
           done
+
+          while IFS= read -r file; do
+            platform=$(basename "$(dirname "$file")")
+            case "$(basename "$file")" in
+              checksums-sha256.txt)
+                mv "$file" "$(dirname "$file")/checksums-sha256-${platform}.txt"
+                ;;
+              sbom.spdx.json)
+                mv "$file" "$(dirname "$file")/sbom-${platform}.spdx.json"
+                ;;
+            esac
+          done < <(find release-staging -type f \( -name checksums-sha256.txt -o -name sbom.spdx.json \))
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
