@@ -1,6 +1,6 @@
-use axum::{Json, response::IntoResponse};
-use serde::{Deserialize, Serialize};
 use crate::response::ApiResponse;
+use axum::{response::IntoResponse, Json};
+use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize)]
 pub struct ProxyRequest {
@@ -17,10 +17,13 @@ pub struct ProxyResponse {
     pub headers: std::collections::HashMap<String, String>,
 }
 
-use axum::extract::State;
 use crate::state::AppState;
+use axum::extract::State;
 
-pub async fn proxy_handler(State(state): State<AppState>, Json(req): Json<ProxyRequest>) -> impl IntoResponse {
+pub async fn proxy_handler(
+    State(state): State<AppState>,
+    Json(req): Json<ProxyRequest>,
+) -> impl IntoResponse {
     let client = &state.http_client;
     let method = match req.method.as_deref() {
         Some("POST") => reqwest::Method::POST,
@@ -51,12 +54,16 @@ pub async fn proxy_handler(State(state): State<AppState>, Json(req): Json<ProxyR
                 }
             }
 
-            let body = if res.headers().get(reqwest::header::CONTENT_TYPE)
+            let body = if res
+                .headers()
+                .get(reqwest::header::CONTENT_TYPE)
                 .and_then(|v| v.to_str().ok())
                 .map(|v| v.contains("application/json"))
                 .unwrap_or(false)
             {
-                res.json::<serde_json::Value>().await.unwrap_or(serde_json::Value::Null)
+                res.json::<serde_json::Value>()
+                    .await
+                    .unwrap_or(serde_json::Value::Null)
             } else {
                 serde_json::Value::String(res.text().await.unwrap_or_default())
             };

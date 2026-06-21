@@ -441,9 +441,7 @@ pub fn resolve(cfg: PackagingConfig, version: &str, platform: &str) -> Result<Re
     // distinguish major upgrades of this MSI from any other product and
     // reinstalls will collide.
     const PLACEHOLDER_UPGRADE_CODE: &str = "{12345678-1234-1234-1234-123456789012}";
-    if windows.msi.upgrade_code.is_empty()
-        || windows.msi.upgrade_code == PLACEHOLDER_UPGRADE_CODE
-    {
+    if windows.msi.upgrade_code.is_empty() || windows.msi.upgrade_code == PLACEHOLDER_UPGRADE_CODE {
         eprintln!(
             "{} [windows.msi].upgrade_code is unset or still the placeholder {PLACEHOLDER_UPGRADE_CODE}. \
              Generate a stable GUID (e.g. `uuidgen` / PowerShell `[guid]::NewGuid()`) and set it in \

@@ -340,6 +340,8 @@ mod tests {
         }
         let cands = web_dist_candidates();
         assert!(!cands.is_empty());
-        assert!(cands.iter().any(|p| p.ends_with("web") || p.ends_with("web/dist")));
+        assert!(cands
+            .iter()
+            .any(|p| p.ends_with("web") || p.ends_with("web/dist")));
     }
 }

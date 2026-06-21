@@ -224,7 +224,11 @@ fn build_data_tar(root: &Path, out: &Path) -> Result<()> {
     let file = File::create(out)?;
     let gz = GzEncoder::new(file, Compression::default());
     let mut tar = tar::Builder::new(gz);
-    for entry in WalkDir::new(root).follow_links(false).into_iter().filter_map(Result::ok) {
+    for entry in WalkDir::new(root)
+        .follow_links(false)
+        .into_iter()
+        .filter_map(Result::ok)
+    {
         let path = entry.path();
         let rel = path.strip_prefix(root).unwrap();
         if rel.as_os_str().is_empty() {

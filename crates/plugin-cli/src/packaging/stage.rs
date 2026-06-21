@@ -181,9 +181,7 @@ pub fn stage_release(
 /// runtime log which arch it was packaged for.
 fn write_platform_marker(stage_dir: &Path, platform: &str, target_triple: &str) -> Result<()> {
     let path = stage_dir.join("platform.txt");
-    let body = format!(
-        "platform={platform}\ntarget_triple={target_triple}\n",
-    );
+    let body = format!("platform={platform}\ntarget_triple={target_triple}\n",);
     std::fs::write(&path, body)
         .with_context(|| format!("writing platform marker {}", path.display()))?;
     Ok(())

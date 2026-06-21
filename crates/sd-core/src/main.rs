@@ -273,8 +273,7 @@ fn pid_lock_path() -> PathBuf {
     #[cfg(target_os = "linux")]
     {
         if let Ok(runtime_dir) = std::env::var("XDG_RUNTIME_DIR") {
-            return PathBuf::from(runtime_dir)
-                .join("sd-core/sd-core.pid.lock");
+            return PathBuf::from(runtime_dir).join("sd-core/sd-core.pid.lock");
         }
     }
 
