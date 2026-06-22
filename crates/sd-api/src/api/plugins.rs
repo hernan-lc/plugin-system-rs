@@ -68,6 +68,16 @@ pub(crate) async fn list_plugins(
     }
 }
 
+pub(crate) async fn uninstall_plugin(
+    State(state): State<AppState>,
+    Path(plugin_name): Path<String>,
+) -> Json<ApiResponse<String>> {
+    match state.plugin_manager.uninstall_plugin(&plugin_name).await {
+        Ok(()) => Json(ApiResponse::success("Plugin uninstalled".to_string())),
+        Err(e) => Json(ApiResponse::error(e.to_string())),
+    }
+}
+
 pub(crate) async fn reload_plugins(State(state): State<AppState>) -> Json<ApiResponse<String>> {
     match state.plugin_manager.reload_plugins().await {
         Ok(()) => Json(ApiResponse::success("Plugins reloaded".to_string())),

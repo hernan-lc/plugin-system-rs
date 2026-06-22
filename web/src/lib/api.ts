@@ -90,6 +90,13 @@ export async function updatePluginFile(
   return readPluginResponse<PluginStatus>(res);
 }
 
+export async function uninstallPlugin(pluginName: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/plugins/${encodeURIComponent(pluginName)}`, {
+    method: "DELETE",
+  });
+  await readPluginResponse<string>(res);
+}
+
 export async function reloadPlugins() {
   const res = await fetch(`${API_BASE}/plugins/reload`, {
     method: "POST",
