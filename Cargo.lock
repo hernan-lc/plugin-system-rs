@@ -3291,6 +3291,7 @@ dependencies = [
  "log",
  "muda",
  "open",
+ "reqwest",
  "sd-actions",
  "sd-api",
  "sd-devices",

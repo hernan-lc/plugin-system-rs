@@ -29,5 +29,6 @@ image = { version = "0.25", default-features = false, features = ["png"] }
 open = "5"
 local-ip-address = "0.6"
 ctrlc = "3"
+reqwest = { version = "0.12", features = ["json"] }
 thiserror = "1"
 windows-sys = { version = "0.52", features = ["Win32_Foundation", "Win32_System_Threading"] }
