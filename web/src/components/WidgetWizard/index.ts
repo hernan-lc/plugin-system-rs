@@ -1,4 +1,4 @@
-export { WidgetWizard } from "./WidgetWizard";
+export { WidgetWizard } from "../WidgetWizard";
 export { WizardGeneral } from "./WizardGeneral";
 export { WizardConfig } from "./WizardConfig";
 export { WizardStyle } from "./WizardStyle";
