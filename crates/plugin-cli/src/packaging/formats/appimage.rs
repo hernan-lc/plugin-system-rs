@@ -105,7 +105,8 @@ pub fn build(
         None => None,
     };
 
-    if let (Some(runtime), Ok(squashfs_path)) = (runtime_path, build_squashfs(&appdir, staging_root))
+    if let (Some(runtime), Ok(squashfs_path)) =
+        (runtime_path, build_squashfs(&appdir, staging_root))
     {
         // Real AppImage: runtime + squashfs offset
         let mut f = fs::File::create(&artifact)?;

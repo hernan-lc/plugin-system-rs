@@ -10,6 +10,7 @@ import { VolumeAppsWidget } from "./VolumeAppsWidget";
 import { ObsWidget } from "./ObsWidget";
 import { ObsScenesWidget } from "./ObsScenesWidget";
 import { ObsInputsWidget } from "./ObsInputsWidget";
+import { FetchWidget } from "./FetchWidget";
 
 export function WidgetContent({ widget }: { widget: WidgetConfig }) {
   switch (widget.type) {
@@ -33,6 +34,8 @@ export function WidgetContent({ widget }: { widget: WidgetConfig }) {
       return h(ObsScenesWidget, { settings: widget.settings });
     case "obs-inputs":
       return h(ObsInputsWidget, { settings: widget.settings });
+    case "fetch":
+      return h(FetchWidget, { settings: widget.settings });
     default:
       return h("div", { class: "widget-unknown" }, "Unknown widget");
   }

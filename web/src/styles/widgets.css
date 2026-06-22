@@ -1395,3 +1395,103 @@
 .hotkey-widget.detailed .hotkey-icon {
     font-size: 2.5rem;
 }
+
+/* Fetch Widget */
+.fetch-widget {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+    font-size: 0.8rem;
+}
+
+.fetch-variant {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    padding: 8px;
+    gap: 4px;
+}
+
+.fetch-variant.minimal {
+    justify-content: center;
+    align-items: center;
+}
+
+.fetch-status {
+    font-size: 2rem;
+    font-weight: bold;
+}
+
+.fetch-status.ok { color: #4caf50; }
+.fetch-status.err { color: #f44336; }
+
+.fetch-url-mini {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.fetch-preview {
+    flex: 1;
+    overflow: hidden;
+    word-break: break-all;
+    color: var(--text-secondary);
+}
+
+.fetch-status-line {
+    font-size: 0.7rem;
+    color: var(--text-dim);
+}
+
+.fetch-url-line {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+}
+
+.fetch-full-preview {
+    flex: 1;
+    background: rgba(0,0,0,0.2);
+    padding: 4px;
+    border-radius: 4px;
+    margin: 0;
+    font-family: monospace;
+    font-size: 0.7rem;
+    overflow: auto;
+}
+
+.fetch-error {
+    color: #f44336;
+    padding: 8px;
+    font-size: 0.7rem;
+}
+
+.fetch-loading {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100%;
+    color: var(--text-muted);
+}
+
+/* Wizard Previews for Fetch */
+.mini-status {
+    font-size: 1.2rem;
+    font-weight: bold;
+}
+.mini-status.ok { color: #4caf50; }
+
+.mini-url {
+    font-size: 0.6rem;
+    color: var(--text-muted);
+}
+
+.mini-data, .mini-json {
+    font-size: 0.6rem;
+    color: var(--text-secondary);
+    font-family: monospace;
+}

@@ -158,6 +158,9 @@ mod tests {
         mgr.add_device(dev).await;
         let found = mgr.get_device(&DeviceId("v2".to_string())).await;
         assert!(found.is_some());
-        assert!(mgr.get_device(&DeviceId("nope".to_string())).await.is_none());
+        assert!(mgr
+            .get_device(&DeviceId("nope".to_string()))
+            .await
+            .is_none());
     }
 }

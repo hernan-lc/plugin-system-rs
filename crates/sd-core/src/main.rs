@@ -104,6 +104,7 @@ async fn main() -> Result<()> {
         device_manager,
         plugin_manager,
         dashboard_config,
+        http_client: reqwest::Client::new(),
     };
 
     let events_clone = events.clone();
@@ -272,8 +273,7 @@ fn pid_lock_path() -> PathBuf {
     #[cfg(target_os = "linux")]
     {
         if let Ok(runtime_dir) = std::env::var("XDG_RUNTIME_DIR") {
-            return PathBuf::from(runtime_dir)
-                .join("sd-core/sd-core.pid.lock");
+            return PathBuf::from(runtime_dir).join("sd-core/sd-core.pid.lock");
         }
     }
 
