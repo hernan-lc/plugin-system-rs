@@ -3,6 +3,14 @@ import { useState } from "preact/hooks";
 import { WidgetConfig, WIDGET_VARIANTS } from "../lib/types";
 import { recordHotkey, resetHotkeyRecording } from "../lib/api";
 import { WidgetContent } from "./WidgetContent";
+import {
+  FormField,
+  FormInput,
+  FormSelect,
+  FormTextarea,
+  KeyValueEditor,
+  CollapsibleSection,
+} from "./FormComponents";
 
 interface WidgetWizardProps {
   widget: WidgetConfig;
@@ -45,6 +53,10 @@ export function WidgetWizard({
     onSave(widget.id, { title, colSpan, settings: { ...settings, variant } });
   }
 
+  function updateSetting(key: string, value: any) {
+    setSettings((prev) => ({ ...prev, [key]: value }));
+  }
+
   return h(
     "div",
     { class: "wizard-overlay", onClick: onClose },
@@ -55,7 +67,7 @@ export function WidgetWizard({
         "div",
         { class: "wizard-header" },
         h("div", { class: "wizard-title" }, `Edit: ${widget.type}`),
-        h("button", { class: "picker-close", onClick: onClose }, "X"),
+        h("button", { class: "picker-close", onClick: onClose }, "\u2715"),
       ),
       h(
         "div",
@@ -85,7 +97,12 @@ export function WidgetWizard({
             onChangeColSpan: setColSpan,
           }),
         step === 1 &&
-          h(WizardConfig, { widget, settings, onChange: setSettings }),
+          h(WizardConfig, {
+            widget,
+            settings,
+            onChange: setSettings,
+            updateSetting,
+          }),
         step === 2 && h(WizardStyle, { widget, variant, onChange: setVariant }),
         step === 3 &&
           h(WizardConfirm, {
@@ -124,6 +141,8 @@ export function WidgetWizard({
   );
 }
 
+/* ── General Step ─────────────────────────────────────── */
+
 function WizardGeneral({
   title,
   colSpan,
@@ -142,267 +161,332 @@ function WizardGeneral({
     { class: "wizard-step-content" },
     h("h3", { class: "wizard-step-heading" }, "General Settings"),
     h(
-      "div",
-      { class: "wizard-field" },
-      h("label", null, "Widget Title"),
-      h("input", {
-        type: "text",
+      FormField,
+      { label: "Widget Title" },
+      h(FormInput, {
         value: title,
-        onInput: (e: Event) =>
-          onChangeTitle((e.target as HTMLInputElement).value),
         placeholder: "Enter widget title...",
+        onInput: onChangeTitle,
       }),
     ),
     h(
-      "div",
-      { class: "wizard-field" },
-      h("label", null, "Column Span"),
-      h("input", {
+      FormField,
+      { label: "Column Span", hint: `Grid has ${columns} columns` },
+      h(FormInput, {
         type: "number",
-        min: "1",
-        max: String(columns),
         value: String(colSpan),
-        onInput: (e: Event) =>
-          onChangeColSpan(parseInt((e.target as HTMLInputElement).value) || 1),
+        onInput: (v) => onChangeColSpan(parseInt(v) || 1),
       }),
-      h("span", { class: "wizard-field-hint" }, `Grid has ${columns} columns`),
     ),
   );
 }
+
+/* ── Config Step ──────────────────────────────────────── */
 
 function WizardConfig({
   widget,
   settings,
   onChange,
+  updateSetting,
 }: {
   widget: WidgetConfig;
   settings: Record<string, any>;
   onChange: (s: Record<string, any>) => void;
+  updateSetting: (key: string, value: any) => void;
 }) {
-  function set(key: string, value: any) {
-    onChange({ ...settings, [key]: value });
-  }
+  const set = (key: string, value: any) => updateSetting(key, value);
+
   return h(
     "div",
     { class: "wizard-step-content" },
     h("h3", { class: "wizard-step-heading" }, "Widget Configuration"),
+
     widget.type === "send-hotkey" &&
       h(HotkeyRecorder, {
         currentKeys: settings.keys || "",
         onChange: (keys) => set("keys", keys),
       }),
+
     widget.type === "open-url" &&
       h(
-        "div",
-        { class: "wizard-field" },
-        h("label", null, "URL"),
-        h("input", {
-          type: "text",
+        FormField,
+        { label: "URL" },
+        h(FormInput, {
           value: settings.url || "",
           placeholder: "https://example.com",
-          onInput: (e: Event) =>
-            set("url", (e.target as HTMLInputElement).value),
+          onInput: (v) => set("url", v),
         }),
       ),
+
     widget.type === "type-text" &&
       h(
-        "div",
-        { class: "wizard-field" },
-        h("label", null, "Text"),
-        h("textarea", {
+        FormField,
+        { label: "Text" },
+        h(FormTextarea, {
           value: settings.text || "",
           placeholder: "Text to type...",
-          onInput: (e: Event) =>
-            set("text", (e.target as HTMLTextAreaElement).value),
+          onInput: (v) => set("text", v),
         }),
       ),
+
     widget.type === "system-monitor" &&
-      h(
-        "div",
-        { class: "wizard-field" },
-        h("label", null, "Refresh Interval (ms)"),
-        h("input", {
-          type: "number",
-          min: "500",
-          step: "500",
-          value: String(settings.refreshInterval || 2000),
-          onInput: (e: Event) =>
-            set(
-              "refreshInterval",
-              parseInt((e.target as HTMLInputElement).value) || 2000,
-            ),
-        }),
-      ),
+      h(IntervalField, {
+        value: settings.refreshInterval || 2000,
+        min: 500,
+        onChange: (v) => set("refreshInterval", v),
+      }),
+
     widget.type === "volume-master" &&
-      h(
-        "div",
-        { class: "wizard-field" },
-        h("label", null, "Refresh Interval (ms)"),
-        h("input", {
-          type: "number",
-          min: "500",
-          step: "500",
-          value: String(settings.refreshInterval || 2000),
-          onInput: (e: Event) =>
-            set(
-              "refreshInterval",
-              parseInt((e.target as HTMLInputElement).value) || 2000,
-            ),
-        }),
-      ),
+      h(IntervalField, {
+        value: settings.refreshInterval || 2000,
+        min: 500,
+        onChange: (v) => set("refreshInterval", v),
+      }),
+
     widget.type === "volume-apps" &&
-      h(
-        "div",
-        { class: "wizard-field" },
-        h("label", null, "Refresh Interval (ms)"),
-        h("input", {
-          type: "number",
-          min: "500",
-          step: "500",
-          value: String(settings.refreshInterval || 2000),
-          onInput: (e: Event) =>
-            set(
-              "refreshInterval",
-              parseInt((e.target as HTMLInputElement).value) || 2000,
-            ),
-        }),
-      ),
+      h(IntervalField, {
+        value: settings.refreshInterval || 2000,
+        min: 500,
+        onChange: (v) => set("refreshInterval", v),
+      }),
+
     widget.type === "obs-control" &&
       h(
         "div",
-        { class: "wizard-field" },
-        h("label", null, "OBS Host"),
-        h("input", {
-          type: "text",
-          value: settings.host || "127.0.0.1",
-          placeholder: "127.0.0.1",
-          onInput: (e: Event) => set("host", (e.target as HTMLInputElement).value),
-        }),
-        h("label", null, "Port"),
-        h("input", {
-          type: "number",
-          value: String(settings.port || 4455),
-          onInput: (e: Event) => set("port", parseInt((e.target as HTMLInputElement).value) || 4455),
-        }),
-        h("label", null, "Password"),
-        h("input", {
-          type: "password",
-          value: settings.password || "",
-          placeholder: "OBS WebSocket password",
-          onInput: (e: Event) => set("password", (e.target as HTMLInputElement).value),
-        }),
-        h("label", null, "Refresh Interval (ms)"),
-        h("input", {
-          type: "number",
-          min: "500",
-          step: "500",
-          value: String(settings.refreshInterval || 2000),
-          onInput: (e: Event) =>
-            set("refreshInterval", parseInt((e.target as HTMLInputElement).value) || 2000),
-        }),
-      ),
-    widget.type === "obs-scenes" &&
-      h(
-        "div",
-        { class: "wizard-field" },
-        h("label", null, "Refresh Interval (ms)"),
-        h("input", {
-          type: "number",
-          min: "500",
-          step: "500",
-          value: String(settings.refreshInterval || 2000),
-          onInput: (e: Event) =>
-            set("refreshInterval", parseInt((e.target as HTMLInputElement).value) || 2000),
-        }),
-      ),
-    widget.type === "obs-inputs" &&
-      h(
-        "div",
-        { class: "wizard-field" },
-        h("label", null, "Refresh Interval (ms)"),
-        h("input", {
-          type: "number",
-          min: "500",
-          step: "500",
-          value: String(settings.refreshInterval || 2000),
-          onInput: (e: Event) =>
-            set("refreshInterval", parseInt((e.target as HTMLInputElement).value) || 2000),
-        }),
-      ),
-    widget.type === "fetch" &&
-      h(
-        "div",
         { class: "wizard-step-content" },
-        h("h3", { class: "wizard-step-heading" }, "Widget Configuration"),
         h(
-          "div",
-          { class: "wizard-field" },
-          h("label", null, "URL"),
-          h("input", {
-            type: "text",
-            value: settings.url || "",
-            placeholder: "https://api.example.com/data",
-            onInput: (e: Event) => set("url", (e.target as HTMLInputElement).value),
+          FormField,
+          { label: "OBS Host" },
+          h(FormInput, {
+            value: settings.host || "127.0.0.1",
+            placeholder: "127.0.0.1",
+            onInput: (v) => set("host", v),
           }),
         ),
         h(
           "div",
           { class: "wizard-field-row" },
           h(
-            "div",
-            { class: "wizard-field" },
-            h("label", null, "Fetch Mode"),
-            h("select", {
-              value: settings.mode || "proxy",
-              onChange: (e: Event) => set("mode", (e.target as HTMLSelectElement).value),
-            },
-              h("option", { value: "local" }, "Local (Browser)"),
-              h("option", { value: "proxy" }, "Proxy (Backend)")
-            ),
+            FormField,
+            { label: "Port" },
+            h(FormInput, {
+              type: "number",
+              value: String(settings.port || 4455),
+              onInput: (v) => set("port", parseInt(v) || 4455),
+            }),
           ),
           h(
-            "div",
-            { class: "wizard-field" },
-            h("label", null, "HTTP Method"),
-            h("select", {
-              value: settings.method || "GET",
-              onChange: (e: Event) => set("method", (e.target as HTMLSelectElement).value),
-            },
-              h("option", { value: "GET" }, "GET"),
-              h("option", { value: "POST" }, "POST"),
-              h("option", { value: "PUT" }, "PUT"),
-              h("option", { value: "DELETE" }, "DELETE"),
-              h("option", { value: "PATCH" }, "PATCH")
-            ),
+            FormField,
+            { label: "Password" },
+            h(FormInput, {
+              type: "password",
+              value: settings.password || "",
+              placeholder: "OBS WebSocket password",
+              onInput: (v) => set("password", v),
+            }),
           ),
         ),
+        h(IntervalField, {
+          value: settings.refreshInterval || 2000,
+          min: 500,
+          onChange: (v) => set("refreshInterval", v),
+        }),
+      ),
+
+    widget.type === "obs-scenes" &&
+      h(IntervalField, {
+        value: settings.refreshInterval || 2000,
+        min: 500,
+        onChange: (v) => set("refreshInterval", v),
+      }),
+
+    widget.type === "obs-inputs" &&
+      h(IntervalField, {
+        value: settings.refreshInterval || 2000,
+        min: 500,
+        onChange: (v) => set("refreshInterval", v),
+      }),
+
+    widget.type === "fetch" &&
+      h(FetchConfig, { settings, updateSetting }),
+  );
+}
+
+/* ── Interval Field (reusable) ────────────────────────── */
+
+function IntervalField({
+  value,
+  min = 500,
+  onChange,
+}: {
+  value: number;
+  min?: number;
+  onChange: (v: number) => void;
+}) {
+  return h(
+    FormField,
+    { label: "Refresh Interval", hint: "ms" },
+    h(FormInput, {
+      type: "number",
+      value: String(value),
+      onInput: (v) => onChange(parseInt(v) || min),
+    }),
+  );
+}
+
+/* ── Fetch Config ─────────────────────────────────────── */
+
+function FetchConfig({
+  settings,
+  updateSetting,
+}: {
+  settings: Record<string, any>;
+  updateSetting: (key: string, value: any) => void;
+}) {
+  const method = settings.method || "GET";
+  const hasBody = ["POST", "PUT", "PATCH"].includes(method);
+
+  return h(
+    "div",
+    { class: "wizard-step-content" },
+
+    h(
+      FormField,
+      { label: "URL" },
+      h(FormInput, {
+        value: settings.url || "",
+        placeholder: "https://api.example.com/data",
+        onInput: (v) => updateSetting("url", v),
+      }),
+    ),
+
+    h(
+      "div",
+      { class: "wizard-field-row" },
+      h(
+        FormField,
+        { label: "Fetch Mode" },
+        h(FormSelect, {
+          value: settings.mode || "proxy",
+          options: [
+            { value: "local", label: "Local (Browser)" },
+            { value: "proxy", label: "Proxy (Backend)" },
+          ],
+          onChange: (v) => updateSetting("mode", v),
+        }),
+      ),
+      h(
+        FormField,
+        { label: "HTTP Method" },
+        h(FormSelect, {
+          value: method,
+          options: [
+            { value: "GET", label: "GET" },
+            { value: "POST", label: "POST" },
+            { value: "PUT", label: "PUT" },
+            { value: "DELETE", label: "DELETE" },
+            { value: "PATCH", label: "PATCH" },
+          ],
+          onChange: (v) => updateSetting("method", v),
+        }),
+      ),
+    ),
+
+    h(
+      "div",
+      { class: "wizard-field-row" },
+      h(
+        FormField,
+        { label: "Fetch Mode" },
+        h(FormSelect, {
+          value: settings.fetchMode || "auto",
+          options: [
+            { value: "once", label: "Once (manual refresh)" },
+            { value: "auto", label: "Auto (interval)" },
+          ],
+          onChange: (v) => updateSetting("fetchMode", v),
+        }),
+      ),
+      settings.fetchMode !== "once" &&
         h(
-          "div",
-          { class: "wizard-field" },
-          h("label", null, "Refresh Interval (ms)"),
-          h("input", {
+          FormField,
+          { label: "Interval", hint: "seconds" },
+          h(FormInput, {
             type: "number",
-            min: "1000",
-            step: "1000",
-            value: String(settings.refreshInterval || 30000),
-            onInput: (e: Event) =>
-              set("refreshInterval", parseInt((e.target as HTMLInputElement).value) || 30000),
+            value: String(settings.intervalSec || 30),
+            onInput: (v) => updateSetting("intervalSec", parseInt(v) || 30),
           }),
         ),
-        h("div", { class: "wizard-divider" }),
-        h(FetchHeadersEditor, {
-          headers: settings.headers || "",
-          onChange: (h: string) => set("headers", h),
-        }),
-        h("div", { class: "wizard-divider" }),
-        h(FetchBodyEditor, {
-          method: settings.method || "GET",
-          body: settings.body || "",
-          onChange: (b: string) => set("body", b),
-        }),
+    ),
+
+    h(
+      CollapsibleSection,
+      { title: "Headers", defaultOpen: !!(settings.headers && settings.headers.trim()) },
+      h(KeyValueEditor, {
+        value: settings.headers || "",
+        placeholder: { key: "Authorization", value: "Bearer token" },
+        onChange: (v) => updateSetting("headers", v),
+      }),
+    ),
+
+    hasBody &&
+      h(
+        CollapsibleSection,
+        { title: "Request Body", defaultOpen: true },
+        h(
+          "div",
+          { class: "wizard-step-content" },
+          h(
+            FormField,
+            { label: "Body Type" },
+            h(FormSelect, {
+              value: settings.bodyType || "json",
+              options: [
+                { value: "json", label: "JSON" },
+                { value: "raw", label: "Raw Text" },
+                { value: "form", label: "Form Data" },
+              ],
+              onChange: (v) => updateSetting("bodyType", v),
+            }),
+          ),
+          settings.bodyType === "json" &&
+            h(
+              FormField,
+              { label: "JSON Body" },
+              h(FormTextarea, {
+                value: settings.body || "",
+                placeholder: '{\n  "key": "value"\n}',
+                rows: 5,
+                onInput: (v) => updateSetting("body", v),
+              }),
+            ),
+          settings.bodyType === "raw" &&
+            h(
+              FormField,
+              { label: "Raw Body" },
+              h(FormTextarea, {
+                value: settings.body || "",
+                placeholder: "Raw request body...",
+                rows: 5,
+                onInput: (v) => updateSetting("body", v),
+              }),
+            ),
+          settings.bodyType === "form" &&
+            h(
+              FormField,
+              { label: "Form Fields" },
+              h(KeyValueEditor, {
+                value: settings.body || "",
+                placeholder: { key: "field", value: "value" },
+                onChange: (v) => updateSetting("body", v),
+              }),
+            ),
+        ),
       ),
   );
 }
+
+/* ── Hotkey Recorder ──────────────────────────────────── */
 
 function HotkeyRecorder({
   currentKeys,
@@ -424,7 +508,6 @@ function HotkeyRecorder({
     alt: "Alt",
     win: "Win",
   };
-
   const LETTER_KEYS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
   const NUMBER_KEYS = "0123456789".split("");
   const FUNCTION_KEYS = Array.from({ length: 12 }, (_, i) => `f${i + 1}`);
@@ -439,20 +522,19 @@ function HotkeyRecorder({
     { key: "end", label: "End" },
     { key: "pageup", label: "PgUp" },
     { key: "pagedown", label: "PgDn" },
-    { key: "up", label: "↑" },
-    { key: "down", label: "↓" },
-    { key: "left", label: "←" },
-    { key: "right", label: "→" },
+    { key: "up", label: "\u2191" },
+    { key: "down", label: "\u2193" },
+    { key: "left", label: "\u2190" },
+    { key: "right", label: "\u2192" },
   ];
 
   function toggleKey(key: string) {
     const lower = key.toLowerCase();
-    setSelectedKeys((prev) => {
-      if (prev.includes(lower)) {
-        return prev.filter((k) => k !== lower);
-      }
-      return [...prev, lower];
-    });
+    setSelectedKeys((prev) =>
+      prev.includes(lower)
+        ? prev.filter((k) => k !== lower)
+        : [...prev, lower]
+    );
   }
 
   function removeKey(key: string) {
@@ -496,22 +578,14 @@ function HotkeyRecorder({
   return h(
     "div",
     { class: "wizard-field" },
-    h("label", null, "Hotkey Combination"),
-
+    h("label", { class: "form-label" }, "Hotkey Combination"),
     h(
       "div",
       { class: "hotkey-display" },
-      h(
-        "span",
-        { class: "hotkey-keys" },
-        combo || "Not set"
-      ),
+      h("span", { class: "hotkey-keys" }, combo || "Not set"),
       h(
         "button",
-        {
-          class: "hotkey-record-btn",
-          onClick: () => setShowPicker(!showPicker),
-        },
+        { class: "hotkey-record-btn", onClick: () => setShowPicker(!showPicker) },
         showPicker ? "Close" : "Select"
       ),
       h(
@@ -523,13 +597,13 @@ function HotkeyRecorder({
         recording ? "..." : "Record"
       )
     ),
-
     showPicker &&
       h(
         "div",
         { class: "key-picker" },
-
-        h("div", { class: "key-picker-section" },
+        h(
+          "div",
+          { class: "key-picker-section" },
           h("div", { class: "key-picker-label" }, "Selected:"),
           h(
             "div",
@@ -539,13 +613,9 @@ function HotkeyRecorder({
               : selectedKeys.map((key) =>
                   h(
                     "span",
-                    {
-                      class: "key-picker-chip",
-                      key,
-                      onClick: () => removeKey(key),
-                    },
+                    { class: "key-picker-chip", key, onClick: () => removeKey(key) },
                     key,
-                    h("span", { class: "key-picker-chip-x" }, "×")
+                    h("span", { class: "key-picker-chip-x" }, "\u00D7")
                   )
                 )
           ),
@@ -557,8 +627,9 @@ function HotkeyRecorder({
               h("button", { class: "key-picker-apply", onClick: applySelection }, "Apply")
             )
         ),
-
-        h("div", { class: "key-picker-section" },
+        h(
+          "div",
+          { class: "key-picker-section" },
           h("div", { class: "key-picker-label" }, "Modifiers:"),
           h(
             "div",
@@ -576,8 +647,9 @@ function HotkeyRecorder({
             )
           )
         ),
-
-        h("div", { class: "key-picker-section" },
+        h(
+          "div",
+          { class: "key-picker-section" },
           h("div", { class: "key-picker-label" }, "Letters:"),
           h(
             "div",
@@ -595,8 +667,9 @@ function HotkeyRecorder({
             )
           )
         ),
-
-        h("div", { class: "key-picker-section" },
+        h(
+          "div",
+          { class: "key-picker-section" },
           h("div", { class: "key-picker-label" }, "Numbers:"),
           h(
             "div",
@@ -614,8 +687,9 @@ function HotkeyRecorder({
             )
           )
         ),
-
-        h("div", { class: "key-picker-section" },
+        h(
+          "div",
+          { class: "key-picker-section" },
           h("div", { class: "key-picker-label" }, "Function Keys:"),
           h(
             "div",
@@ -633,8 +707,9 @@ function HotkeyRecorder({
             )
           )
         ),
-
-        h("div", { class: "key-picker-section" },
+        h(
+          "div",
+          { class: "key-picker-section" },
           h("div", { class: "key-picker-label" }, "Special Keys:"),
           h(
             "div",
@@ -655,6 +730,8 @@ function HotkeyRecorder({
       )
   );
 }
+
+/* ── Style Step ───────────────────────────────────────── */
 
 function WizardStyle({
   widget,
@@ -701,6 +778,8 @@ function WizardStyle({
   );
 }
 
+/* ── Variant Preview ──────────────────────────────────── */
+
 function VariantPreview({ type, variant }: { type: string; variant: string }) {
   switch (type) {
     case "system-monitor":
@@ -716,35 +795,14 @@ function VariantPreview({ type, variant }: { type: string; variant: string }) {
           return h(
             "div",
             { class: "variant-preview sysmon-compact" },
-            h(
-              "div",
-              { class: "mini-bar" },
-              h("div", {
-                class: "mini-bar-fill",
-                style: { width: "42%", background: "#4caf50" },
-              }),
-            ),
-            h(
-              "div",
-              { class: "mini-bar" },
-              h("div", {
-                class: "mini-bar-fill",
-                style: { width: "56%", background: "#2196f3" },
-              }),
-            ),
+            h("div", { class: "mini-bar" }, h("div", { class: "mini-bar-fill", style: { width: "42%", background: "#4caf50" } })),
+            h("div", { class: "mini-bar" }, h("div", { class: "mini-bar-fill", style: { width: "56%", background: "#2196f3" } })),
           );
         case "detailed":
           return h(
             "div",
             { class: "variant-preview sysmon-detailed" },
-            h(
-              "div",
-              { class: "mini-grid" },
-              h("div", null, "42%"),
-              h("div", null, "56%"),
-              h("div", null, "1.2"),
-              h("div", null, "2d"),
-            ),
+            h("div", { class: "mini-grid" }, h("div", null, "42%"), h("div", null, "56%"), h("div", null, "1.2"), h("div", null, "2d")),
           );
       }
     case "clock":
@@ -752,254 +810,74 @@ function VariantPreview({ type, variant }: { type: string; variant: string }) {
         case "simple":
           return h("div", { class: "variant-preview clock-simple" }, "14:30");
         case "digital":
-          return h(
-            "div",
-            { class: "variant-preview clock-digital" },
-            "14:30",
-            h("div", { class: "mini-sec" }, "15"),
-            h("div", { class: "mini-date" }, "Mon"),
-          );
+          return h("div", { class: "variant-preview clock-digital" }, "14:30", h("div", { class: "mini-sec" }, "15"), h("div", { class: "mini-date" }, "Mon"));
         case "detailed":
-          return h(
-            "div",
-            { class: "variant-preview clock-detailed" },
-            "14:30:15",
-            h("div", { class: "mini-date" }, "Monday, Jun 10"),
-          );
+          return h("div", { class: "variant-preview clock-detailed" }, "14:30:15", h("div", { class: "mini-date" }, "Monday, Jun 10"));
       }
     case "volume-master":
       switch (variant) {
         case "minimal":
-          return h(
-            "div",
-            { class: "variant-preview vol-minimal" },
-            h("div", null, "75%"),
-            h("div", { class: "mini-btn" }, "MUTE"),
-          );
+          return h("div", { class: "variant-preview vol-minimal" }, h("div", null, "75%"), h("div", { class: "mini-btn" }, "MUTE"));
         case "compact":
-          return h(
-            "div",
-            { class: "variant-preview vol-compact" },
-            h(
-              "div",
-              { class: "mini-bar" },
-              h("div", {
-                class: "mini-bar-fill",
-                style: { width: "75%", background: "#4caf50" },
-              }),
-            ),
-            h("div", null, "Speaker"),
-          );
+          return h("div", { class: "variant-preview vol-compact" }, h("div", { class: "mini-bar" }, h("div", { class: "mini-bar-fill", style: { width: "75%", background: "#4caf50" } })), h("div", null, "Speaker"));
         case "detailed":
-          return h(
-            "div",
-            { class: "variant-preview vol-detailed" },
-            h("div", null, "75%"),
-            h(
-              "div",
-              { class: "mini-bar" },
-              h("div", {
-                class: "mini-bar-fill",
-                style: { width: "75%", background: "#4caf50" },
-              }),
-            ),
-            h("div", { class: "mini-apps" }, "Apps: 2"),
-          );
+          return h("div", { class: "variant-preview vol-detailed" }, h("div", null, "75%"), h("div", { class: "mini-bar" }, h("div", { class: "mini-bar-fill", style: { width: "75%", background: "#4caf50" } })), h("div", { class: "mini-apps" }, "Apps: 2"));
       }
     case "volume-apps":
       switch (variant) {
         case "minimal":
-          return h(
-            "div",
-            { class: "variant-preview volapps-minimal" },
-            h("div", null, "3 apps"),
-            h("div", { class: "mini-list" }, "Firefox, Spotify"),
-          );
+          return h("div", { class: "variant-preview volapps-minimal" }, h("div", null, "3 apps"), h("div", { class: "mini-list" }, "Firefox, Spotify"));
         case "compact":
-          return h(
-            "div",
-            { class: "variant-preview volapps-compact" },
-            h("div", null, "Firefox"),
-            h(
-              "div",
-              { class: "mini-bar" },
-              h("div", {
-                class: "mini-bar-fill",
-                style: { width: "60%", background: "#4caf50" },
-              }),
-            ),
-          );
+          return h("div", { class: "variant-preview volapps-compact" }, h("div", null, "Firefox"), h("div", { class: "mini-bar" }, h("div", { class: "mini-bar-fill", style: { width: "60%", background: "#4caf50" } })));
         case "detailed":
-          return h(
-            "div",
-            { class: "variant-preview volapps-detailed" },
-            h("div", null, "Firefox (PID: 1234)"),
-            h(
-              "div",
-              { class: "mini-bar" },
-              h("div", {
-                class: "mini-bar-fill",
-                style: { width: "60%", background: "#4caf50" },
-              }),
-            ),
-            h("div", null, "60%"),
-          );
+          return h("div", { class: "variant-preview volapps-detailed" }, h("div", null, "Firefox (PID: 1234)"), h("div", { class: "mini-bar" }, h("div", { class: "mini-bar-fill", style: { width: "60%", background: "#4caf50" } })), h("div", null, "60%"));
       }
     case "obs-control":
       switch (variant) {
         case "minimal":
-          return h(
-            "div",
-            { class: "variant-preview obs-minimal" },
-            h("div", { class: "mini-row" },
-              h("div", { class: "mini-dot green" }),
-              h("span", null, "Connected"),
-            ),
-            h("div", { class: "mini-row" },
-              h("div", { class: "mini-dot red" }),
-              h("span", null, "Stream"),
-            ),
-          );
+          return h("div", { class: "variant-preview obs-minimal" }, h("div", { class: "mini-row" }, h("div", { class: "mini-dot green" }), h("span", null, "Connected")), h("div", { class: "mini-row" }, h("div", { class: "mini-dot red" }), h("span", null, "Stream")));
         case "compact":
-          return h(
-            "div",
-            { class: "variant-preview obs-compact" },
-            h("div", null, "Scene 1"),
-            h("div", { class: "mini-btns" },
-              h("div", { class: "mini-btn" }, "STR"),
-              h("div", { class: "mini-btn" }, "REC"),
-              h("div", { class: "mini-btn" }, "VC"),
-            ),
-          );
+          return h("div", { class: "variant-preview obs-compact" }, h("div", null, "Scene 1"), h("div", { class: "mini-btns" }, h("div", { class: "mini-btn" }, "STR"), h("div", { class: "mini-btn" }, "REC"), h("div", { class: "mini-btn" }, "VC")));
         case "detailed":
-          return h(
-            "div",
-            { class: "variant-preview obs-detailed" },
-            h("div", { class: "mini-btns" },
-              h("div", { class: "mini-btn active" }, "Stream"),
-              h("div", { class: "mini-btn" }, "Record"),
-            ),
-            h("div", { class: "mini-grid" },
-              h("div", null, "CPU"),
-              h("div", null, "FPS"),
-            ),
-          );
+          return h("div", { class: "variant-preview obs-detailed" }, h("div", { class: "mini-btns" }, h("div", { class: "mini-btn active" }, "Stream"), h("div", { class: "mini-btn" }, "Record")), h("div", { class: "mini-grid" }, h("div", null, "CPU"), h("div", null, "FPS")));
       }
     case "obs-scenes":
       switch (variant) {
         case "minimal":
-          return h(
-            "div",
-            { class: "variant-preview obscene-minimal" },
-            h("div", null, "Scene 1"),
-            h("div", { class: "mini-grid" },
-              h("div", { class: "mini-btn active" }, "S1"),
-              h("div", { class: "mini-btn" }, "S2"),
-            ),
-          );
+          return h("div", { class: "variant-preview obscene-minimal" }, h("div", null, "Scene 1"), h("div", { class: "mini-grid" }, h("div", { class: "mini-btn active" }, "S1"), h("div", { class: "mini-btn" }, "S2")));
         case "compact":
-          return h(
-            "div",
-            { class: "variant-preview obscene-compact" },
-            h("div", { class: "mini-list" },
-              h("div", { class: "mini-btn active" }, "Scene 1"),
-              h("div", { class: "mini-btn" }, "Scene 2"),
-            ),
-          );
+          return h("div", { class: "variant-preview obscene-compact" }, h("div", { class: "mini-list" }, h("div", { class: "mini-btn active" }, "Scene 1"), h("div", { class: "mini-btn" }, "Scene 2")));
         case "detailed":
-          return h(
-            "div",
-            { class: "variant-preview obscene-detailed" },
-            h("div", { class: "mini-list" },
-              h("div", { class: "mini-btn active" }, "Scene 1"),
-              h("div", { class: "mini-btn" }, "Scene 2"),
-            ),
-            h("div", { class: "mini-btns" },
-              h("div", { class: "mini-btn" }, "Fade"),
-            ),
-          );
+          return h("div", { class: "variant-preview obscene-detailed" }, h("div", { class: "mini-list" }, h("div", { class: "mini-btn active" }, "Scene 1"), h("div", { class: "mini-btn" }, "Scene 2")), h("div", { class: "mini-btns" }, h("div", { class: "mini-btn" }, "Fade")));
       }
     case "obs-inputs":
       switch (variant) {
         case "minimal":
-          return h(
-            "div",
-            { class: "variant-preview obsinput-minimal" },
-            h("div", null, "3 inputs"),
-            h("div", { class: "mini-list" },
-              h("div", { class: "mini-row" },
-                h("span", null, "Mic"),
-                h("div", { class: "mini-btn" }, "M"),
-              ),
-            ),
-          );
+          return h("div", { class: "variant-preview obsinput-minimal" }, h("div", null, "3 inputs"), h("div", { class: "mini-list" }, h("div", { class: "mini-row" }, h("span", null, "Mic"), h("div", { class: "mini-btn" }, "M"))));
         case "compact":
-          return h(
-            "div",
-            { class: "variant-preview obsinput-compact" },
-            h("div", null, "Mic"),
-            h(
-              "div",
-              { class: "mini-bar" },
-              h("div", {
-                class: "mini-bar-fill",
-                style: { width: "75%", background: "#4caf50" },
-              }),
-            ),
-          );
+          return h("div", { class: "variant-preview obsinput-compact" }, h("div", null, "Mic"), h("div", { class: "mini-bar" }, h("div", { class: "mini-bar-fill", style: { width: "75%", background: "#4caf50" } })));
         case "detailed":
-          return h(
-            "div",
-            { class: "variant-preview obsinput-detailed" },
-            h("div", null, "Mic (audio)"),
-            h(
-              "div",
-              { class: "mini-bar" },
-              h("div", {
-                class: "mini-bar-fill",
-                style: { width: "75%", background: "#4caf50" },
-              }),
-            ),
-            h("div", null, "75%"),
-          );
+          return h("div", { class: "variant-preview obsinput-detailed" }, h("div", null, "Mic (audio)"), h("div", { class: "mini-bar" }, h("div", { class: "mini-bar-fill", style: { width: "75%", background: "#4caf50" } })), h("div", null, "75%"));
       }
     case "fetch":
       switch (variant) {
         case "minimal":
-          return h(
-            "div",
-            { class: "variant-preview fetch-minimal" },
-            h("div", { class: "mini-status ok" }, "200"),
-          );
+          return h("div", { class: "variant-preview fetch-minimal" }, h("div", { class: "mini-status ok" }, "200"));
         case "compact":
-          return h(
-            "div",
-            { class: "variant-preview fetch-compact" },
-            h("div", { class: "mini-url" }, "api.ex..."),
-            h("div", { class: "mini-data" }, '{"id":1...}'),
-          );
+          return h("div", { class: "variant-preview fetch-compact" }, h("div", { class: "mini-url" }, "api.ex..."), h("div", { class: "mini-data" }, '{"id":1...}'));
         case "detailed":
-          return h(
-            "div",
-            { class: "variant-preview fetch-detailed" },
-            h("div", { class: "mini-url" }, "https://api.example.com/v1"),
-            h("div", { class: "mini-json" }, '{\n  "status": "ok",\n  "data": [...]\n}'),
-          );
+          return h("div", { class: "variant-preview fetch-detailed" }, h("div", { class: "mini-url" }, "https://api.example.com/v1"), h("div", { class: "mini-json" }, '{\n  "status": "ok",\n  "data": [...]\n}'));
       }
     default:
       return h(
         "div",
         { class: "variant-preview simple-preview" },
-        h(
-          "div",
-          {
-            class: variant === "compact" ? "preview-btn-sm" : "preview-btn-lg",
-          },
-          "Action",
-        ),
+        h("div", { class: variant === "compact" ? "preview-btn-sm" : "preview-btn-lg" }, "Action"),
       );
   }
 }
+
+/* ── Confirm Step ─────────────────────────────────────── */
 
 function WizardConfirm({
   widget,
@@ -1022,32 +900,13 @@ function WizardConfirm({
     "div",
     { class: "wizard-step-content" },
     h("h3", { class: "wizard-step-heading" }, "Confirm Changes"),
-    h(
-      "p",
-      { class: "wizard-step-desc" },
-      "Review your widget configuration before saving",
-    ),
+    h("p", { class: "wizard-step-desc" }, "Review your widget configuration before saving"),
     h(
       "div",
       { class: "confirm-details" },
-      h(
-        "div",
-        { class: "confirm-row" },
-        h("span", null, "Title"),
-        h("span", null, title),
-      ),
-      h(
-        "div",
-        { class: "confirm-row" },
-        h("span", null, "Span"),
-        h("span", null, `${colSpan} column${colSpan > 1 ? "s" : ""}`),
-      ),
-      h(
-        "div",
-        { class: "confirm-row" },
-        h("span", null, "Variant"),
-        h("span", null, variant),
-      ),
+      h("div", { class: "confirm-row" }, h("span", null, "Title"), h("span", null, title)),
+      h("div", { class: "confirm-row" }, h("span", null, "Span"), h("span", null, `${colSpan} column${colSpan > 1 ? "s" : ""}`)),
+      h("div", { class: "confirm-row" }, h("span", null, "Variant"), h("span", null, variant)),
       ...Object.entries(settings)
         .filter(([k]) => k !== "variant")
         .map(([k, v]) =>
@@ -1055,125 +914,22 @@ function WizardConfirm({
             "div",
             { class: "confirm-row", key: k },
             h("span", null, k),
-            h("span", null, String(v).substring(0, 40)),
+            h("span", null, String(v).substring(0, 60)),
           ),
         ),
     ),
     h(
       "div",
       { class: "confirm-preview" },
-      h(
-        "div",
-        {
-          class: "wizard-step-heading",
-          style: "font-size:0.8rem;color:#888;margin-bottom:0.5rem",
-        },
-        "Preview",
-      ),
+      h("div", { class: "wizard-step-heading", style: "font-size:0.8rem;color:#888;margin-bottom:0.5rem" }, "Preview"),
       h(
         "div",
         { class: "preview-frame" },
         h(WidgetContent, {
-          widget: {
-            ...widget,
-            title,
-            colSpan,
-            settings: { ...settings, variant },
-          },
+          widget: { ...widget, title, colSpan, settings: { ...settings, variant } },
         }),
       ),
     ),
-    h(
-      "button",
-      { class: "wizard-remove-btn", onClick: onRemove },
-      "Delete Widget",
-    ),
-  );
-}
-
-function FetchHeadersEditor({
-  headers,
-  onChange,
-}: {
-  headers: string;
-  onChange: (v: string) => void;
-}) {
-  const [error, setError] = useState<string | null>(null);
-
-  function handleChange(value: string) {
-    if (!value.trim()) {
-      setError(null);
-      onChange(value);
-      return;
-    }
-    try {
-      JSON.parse(value);
-      setError(null);
-      onChange(value);
-    } catch {
-      setError("Invalid JSON");
-      onChange(value);
-    }
-  }
-
-  return h(
-    "div",
-    { class: "wizard-field" },
-    h("label", null, "Request Headers", h("span", { class: "wizard-field-hint" }, " (JSON)")),
-    h("textarea", {
-      class: `wizard-json-editor ${error ? "has-error" : ""}`,
-      value: headers,
-      placeholder: '{\n  "Authorization": "Bearer token",\n  "X-Custom": "value"\n}',
-      onInput: (e: Event) => handleChange((e.target as HTMLTextAreaElement).value),
-      rows: 4,
-    }),
-    error ? h("span", { class: "wizard-field-error" }, error) : null,
-  );
-}
-
-function FetchBodyEditor({
-  method,
-  body,
-  onChange,
-}: {
-  method: string;
-  body: string;
-  onChange: (v: string) => void;
-}) {
-  const [error, setError] = useState<string | null>(null);
-  const hasBody = ["POST", "PUT", "PATCH"].includes(method);
-
-  if (!hasBody) {
-    return null;
-  }
-
-  function handleChange(value: string) {
-    if (!value.trim()) {
-      setError(null);
-      onChange(value);
-      return;
-    }
-    try {
-      JSON.parse(value);
-      setError(null);
-      onChange(value);
-    } catch {
-      setError("Invalid JSON");
-      onChange(value);
-    }
-  }
-
-  return h(
-    "div",
-    { class: "wizard-field" },
-    h("label", null, "Request Body", h("span", { class: "wizard-field-hint" }, " (JSON)")),
-    h("textarea", {
-      class: `wizard-json-editor ${error ? "has-error" : ""}`,
-      value: body,
-      placeholder: '{\n  "key": "value"\n}',
-      onInput: (e: Event) => handleChange((e.target as HTMLTextAreaElement).value),
-      rows: 4,
-    }),
-    error ? h("span", { class: "wizard-field-error" }, error) : null,
+    h("button", { class: "wizard-remove-btn", onClick: onRemove }, "Delete Widget"),
   );
 }
