@@ -302,3 +302,7 @@ export interface DashboardLayout {
   widgets: WidgetConfig[];
   columns: number;
 }
+
+export interface CSSCustomProperties {
+  [key: `--${string}`]: string | number;
+}

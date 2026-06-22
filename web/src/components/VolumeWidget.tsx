@@ -1,5 +1,6 @@
 import { h } from "preact";
 import { useState, useEffect, useCallback } from "preact/hooks";
+import { CSSCustomProperties } from "../lib/types";
 
 interface VolumeState {
   master_volume: number;
@@ -95,7 +96,7 @@ export function VolumeWidget({ settings }: { settings: Record<string, any> }) {
           value: state.master_volume,
           onInput: (e: Event) => setVolume(parseFloat((e.target as HTMLInputElement).value)),
           class: "vol-slider",
-          style: { "--vol-pct": `${state.master_volume}%`, "--vol-color": volColor } as any,
+          style: { "--vol-pct": `${state.master_volume}%`, "--vol-color": volColor } as CSSCustomProperties,
         }),
         h("span", { class: "vol-value", style: { color: volColor } }, `${state.master_volume.toFixed(0)}%`),
       ),
@@ -122,9 +123,9 @@ export function VolumeWidget({ settings }: { settings: Record<string, any> }) {
         min: 0,
         max: 100,
         value: state.master_volume,
-        onInput: (e: Event) => setVolume(parseFloat((e.target as HTMLInputElement).value)),
-        class: "vol-slider",
-        style: { "--vol-pct": `${state.master_volume}%`, "--vol-color": volColor } as any,
+          onInput: (e: Event) => setVolume(parseFloat((e.target as HTMLInputElement).value)),
+          class: "vol-slider",
+          style: { "--vol-pct": `${state.master_volume}%`, "--vol-color": volColor } as CSSCustomProperties,
       }),
     ),
   );

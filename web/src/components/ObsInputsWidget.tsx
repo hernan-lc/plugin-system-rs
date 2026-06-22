@@ -1,6 +1,7 @@
 import { h } from "preact";
 import { useState, useEffect, useCallback } from "preact/hooks";
 import { fetchObsInputs, setInputVolume, setInputMute } from "../lib/api";
+import { CSSCustomProperties } from "../lib/types";
 
 interface ObsInput {
   name: string;
@@ -112,7 +113,7 @@ export function ObsInputsWidget({ settings }: { settings: Record<string, any> })
                 step: "0.01",
                 value: String(inp.volume),
                 onInput: (e: Event) => handleVolumeChange(inp.name, parseFloat((e.target as HTMLInputElement).value)),
-                style: { "--vol-pct": `${pct}%` } as any,
+                style: { "--vol-pct": `${pct}%` } as CSSCustomProperties,
               }),
               h("span", { class: "obsinput-value" }, `${pct}%`),
             ),
@@ -147,7 +148,7 @@ export function ObsInputsWidget({ settings }: { settings: Record<string, any> })
               step: "0.01",
               value: String(inp.volume),
               onInput: (e: Event) => handleVolumeChange(inp.name, parseFloat((e.target as HTMLInputElement).value)),
-              style: { "--vol-pct": `${pct}%` } as any,
+                style: { "--vol-pct": `${pct}%` } as CSSCustomProperties,
             }),
             h("span", { class: "obsinput-value" }, `${pct}%`),
           ),

@@ -1,5 +1,6 @@
 import { h } from "preact";
 import { useState, useEffect, useCallback } from "preact/hooks";
+import { CSSCustomProperties } from "../lib/types";
 
 interface AppVolume {
   name: string;
@@ -98,7 +99,7 @@ export function VolumeAppsWidget({ settings }: { settings: Record<string, any> }
               value: app.volume,
               onInput: (e: Event) => setAppVolume(app.name, parseFloat((e.target as HTMLInputElement).value)),
               class: "volapps-slider",
-              style: { "--vol-pct": `${app.volume}%` } as any,
+              style: { "--vol-pct": `${app.volume}%` } as CSSCustomProperties,
             }),
             h("span", { class: "volapps-value" }, `${app.volume.toFixed(0)}%`),
           ),
@@ -129,9 +130,9 @@ export function VolumeAppsWidget({ settings }: { settings: Record<string, any> }
             min: 0,
             max: 100,
             value: app.volume,
-            onInput: (e: Event) => setAppVolume(app.name, parseFloat((e.target as HTMLInputElement).value)),
-            class: "volapps-slider",
-            style: { "--vol-pct": `${app.volume}%` } as any,
+              onInput: (e: Event) => setAppVolume(app.name, parseFloat((e.target as HTMLInputElement).value)),
+              class: "volapps-slider",
+              style: { "--vol-pct": `${app.volume}%` } as CSSCustomProperties,
           }),
           h("span", { class: "volapps-value" }, `${app.volume.toFixed(0)}%`),
         ),

@@ -90,6 +90,20 @@
         "refreshInterval": 2000,
         "variant": "detailed"
       }
+    },
+    {
+      "id": "6u938n39",
+      "type": "fetch",
+      "title": "Fetch Data",
+      "colSpan": 1,
+      "rowSpan": 1,
+      "settings": {
+        "method": "GET",
+        "mode": "proxy",
+        "refreshInterval": 30000,
+        "url": "",
+        "variant": "compact"
+      }
     }
   ],
   "columns": 3
