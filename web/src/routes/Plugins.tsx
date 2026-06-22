@@ -6,6 +6,7 @@ import {
   setPluginEnabled,
   uploadPluginFile,
   updatePluginFile,
+  uninstallPlugin,
 } from '../lib/api';
 import type { PluginStatus } from '../lib/types';
 
@@ -15,6 +16,7 @@ export function Plugins() {
   const [toggling, setToggling] = useState<string | null>(null);
   const [installing, setInstalling] = useState(false);
   const [updating, setUpdating] = useState<string | null>(null);
+  const [uninstalling, setUninstalling] = useState<string | null>(null);
   const [installFile, setInstallFile] = useState<File | null>(null);
   const [installEnabled, setInstallEnabled] = useState(true);
   const [updateFiles, setUpdateFiles] = useState<Record<string, File>>({});
@@ -126,6 +128,25 @@ export function Plugins() {
     }
   }
 
+  async function handleUninstall(plugin: PluginStatus) {
+    if (!confirm(`Are you sure you want to uninstall plugin "${plugin.name}"? This will delete the plugin file.`)) {
+      return;
+    }
+
+    setUninstalling(plugin.name);
+    setMessage(null);
+    setError(null);
+    try {
+      await uninstallPlugin(plugin.name);
+      setMessage('Plugin uninstalled');
+      await loadPlugins();
+    } catch (error) {
+      setError(toErrorMessage(error));
+    } finally {
+      setUninstalling(null);
+    }
+  }
+
   function statusLabel(plugin: PluginStatus) {
     if (plugin.loaded) {
       return 'Loaded';
@@ -213,8 +234,13 @@ export function Plugins() {
                       const input = document.getElementById(`plugin-update-${plugin.name}`);
                       input?.click();
                     },
-                    disabled: installing || updating !== null || toggling !== null,
-                  }, updating === plugin.name ? 'Updating...' : 'Update')
+                    disabled: installing || updating !== null || toggling !== null || uninstalling !== null,
+                  }, updating === plugin.name ? 'Updating...' : 'Update'),
+                  h('button', {
+                    class: 'danger-btn',
+                    onClick: () => handleUninstall(plugin),
+                    disabled: installing || updating !== null || toggling !== null || uninstalling !== null,
+                  }, uninstalling === plugin.name ? 'Removing...' : 'Remove')
                 )
               ),
               h('div', { class: 'plugin-meta' },
