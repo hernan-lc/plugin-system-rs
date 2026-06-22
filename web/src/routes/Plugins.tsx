@@ -1,5 +1,5 @@
 import { h } from 'preact';
-import { useState, useEffect } from 'preact/hooks';
+import { useState, useEffect, useCallback } from 'preact/hooks';
 import {
   fetchPlugins,
   refreshPlugins,
@@ -10,9 +10,25 @@ import {
 } from '../lib/api';
 import type { PluginStatus } from '../lib/types';
 
+type PluginsTab = 'installed' | 'install';
+
+function getTabFromURL(): PluginsTab {
+  const params = new URLSearchParams(window.location.search);
+  const tab = params.get('tab');
+  if (tab === 'install') return 'install';
+  return 'installed';
+}
+
+function setTabToURL(tab: PluginsTab) {
+  const url = new URL(window.location.href);
+  url.searchParams.set('tab', tab);
+  window.history.replaceState({}, '', url.toString());
+}
+
 export function Plugins() {
   const [plugins, setPlugins] = useState<PluginStatus[]>([]);
   const [loading, setLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState<PluginsTab>(getTabFromURL);
   const [toggling, setToggling] = useState<string | null>(null);
   const [installing, setInstalling] = useState(false);
   const [updating, setUpdating] = useState<string | null>(null);
@@ -22,6 +38,19 @@ export function Plugins() {
   const [updateFiles, setUpdateFiles] = useState<Record<string, File>>({});
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const handleTabChange = useCallback((tab: PluginsTab) => {
+    setActiveTab(tab);
+    setTabToURL(tab);
+  }, []);
+
+  useEffect(() => {
+    function handlePopState() {
+      setActiveTab(getTabFromURL());
+    }
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   useEffect(() => {
     loadPlugins();
@@ -158,6 +187,9 @@ export function Plugins() {
     return path.split(/[\\/]/).pop() ?? path;
   }
 
+  const enabledCount = plugins.filter(p => p.enabled).length;
+  const loadedCount = plugins.filter(p => p.loaded).length;
+
   return h('div', { class: 'plugins-page' },
     h('section', { class: 'plugin-actions' },
       h('div', null,
@@ -171,10 +203,36 @@ export function Plugins() {
       }, loading ? 'Loading...' : 'Refresh')
     ),
 
+    h('div', { class: 'plugin-stats' },
+      h('div', { class: 'plugin-stat-card' },
+        h('span', { class: 'plugin-stat-value' }, String(plugins.length)),
+        h('span', { class: 'plugin-stat-label' }, 'Total')
+      ),
+      h('div', { class: 'plugin-stat-card' },
+        h('span', { class: 'plugin-stat-value accent' }, String(enabledCount)),
+        h('span', { class: 'plugin-stat-label' }, 'Enabled')
+      ),
+      h('div', { class: 'plugin-stat-card' },
+        h('span', { class: 'plugin-stat-value success' }, String(loadedCount)),
+        h('span', { class: 'plugin-stat-label' }, 'Loaded')
+      )
+    ),
+
     message ? h('div', { class: 'plugin-message' }, message) : null,
     error ? h('div', { class: 'plugin-error' }, error) : null,
 
-    h('section', { class: 'plugin-upload-card' },
+    h('div', { class: 'plugin-tabs' },
+      h('button', {
+        class: `plugin-tab ${activeTab === 'installed' ? 'active' : ''}`,
+        onClick: () => handleTabChange('installed'),
+      }, 'Installed'),
+      h('button', {
+        class: `plugin-tab ${activeTab === 'install' ? 'active' : ''}`,
+        onClick: () => handleTabChange('install'),
+      }, 'Install')
+    ),
+
+    activeTab === 'install' && h('section', { class: 'plugin-upload-card' },
       h('h3', null, 'Install plugin'),
       h('div', { class: 'plugin-upload-row' },
         h('input', {
@@ -199,11 +257,14 @@ export function Plugins() {
       installFile ? h('p', { class: 'plugin-file-name' }, installFile.name) : null
     ),
 
-    h('div', { class: 'plugin-list' },
+    activeTab === 'installed' && h('div', { class: 'plugin-list' },
       plugins.length === 0
-        ? h('p', null, 'No plugins found. Install a .so/.dll/.dylib plugin file or place one in the plugin directory.')
+        ? h('div', { class: 'plugin-empty' },
+            h('p', { class: 'plugin-empty-title' }, 'No plugins installed'),
+            h('p', { class: 'plugin-empty-hint' }, 'Install a .so/.dll/.dylib plugin file or place one in the plugin directory.')
+          )
         : plugins.map(plugin =>
-            h('div', { class: 'plugin-item', key: plugin.name },
+            h('div', { class: `plugin-item ${plugin.loaded ? 'loaded' : ''} ${!plugin.enabled ? 'disabled' : ''}`, key: plugin.name },
               h('div', { class: 'plugin-header' },
                 h('div', { class: 'plugin-title' },
                   h('span', { class: 'plugin-name' }, plugin.name),
@@ -245,8 +306,7 @@ export function Plugins() {
               ),
               h('div', { class: 'plugin-meta' },
                 h('span', {
-                  class: `plugin-status ${plugin.loaded ? 'loaded' : 'not-loaded'
-                  }`,
+                  class: `plugin-badge ${plugin.loaded ? 'badge-loaded' : 'badge-error'}`,
                 }, statusLabel(plugin)),
                 h('span', { class: 'plugin-path' }, fileName(plugin.path)),
                 updateFiles[plugin.name]

@@ -5,6 +5,8 @@ interface FetchWidgetSettings {
   url: string;
   mode: "local" | "proxy";
   method: string;
+  headers: string;
+  body: string;
   refreshInterval: number;
   variant?: string;
 }
@@ -15,10 +17,39 @@ export function FetchWidget({ settings }: { settings: Record<string, any> }) {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const { url, mode, method, refreshInterval, variant = "compact" } = settings as FetchWidgetSettings;
+  const {
+    url,
+    mode,
+    method,
+    headers: rawHeaders,
+    body: rawBody,
+    refreshInterval,
+    variant = "compact",
+  } = settings as FetchWidgetSettings;
+
+  function parseHeaders(): Record<string, string> {
+    if (!rawHeaders?.trim()) return {};
+    try {
+      return JSON.parse(rawHeaders);
+    } catch {
+      return {};
+    }
+  }
+
+  function parseBody(): any {
+    if (!rawBody?.trim()) return undefined;
+    try {
+      return JSON.parse(rawBody);
+    } catch {
+      return rawBody;
+    }
+  }
 
   useEffect(() => {
     if (!url) return;
+
+    const customHeaders = parseHeaders();
+    const parsedBody = parseBody();
 
     let active = true;
     const fetchData = async () => {
@@ -28,7 +59,12 @@ export function FetchWidget({ settings }: { settings: Record<string, any> }) {
           const res = await fetch("/api/proxy", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ url, method }),
+            body: JSON.stringify({
+              url,
+              method,
+              headers: customHeaders,
+              body: ["POST", "PUT", "PATCH"].includes(method) ? parsedBody : undefined,
+            }),
           });
           const json = await res.json();
           if (active) {
@@ -41,7 +77,14 @@ export function FetchWidget({ settings }: { settings: Record<string, any> }) {
             }
           }
         } else {
-          const res = await fetch(url, { method });
+          const fetchOptions: RequestInit = {
+            method,
+            headers: customHeaders,
+          };
+          if (["POST", "PUT", "PATCH"].includes(method) && parsedBody) {
+            fetchOptions.body = typeof parsedBody === "string" ? parsedBody : JSON.stringify(parsedBody);
+          }
+          const res = await fetch(url, fetchOptions);
           const status = res.status;
           const contentType = res.headers.get("content-type");
           let body;
@@ -73,7 +116,7 @@ export function FetchWidget({ settings }: { settings: Record<string, any> }) {
       active = false;
       clearInterval(interval);
     };
-  }, [url, mode, method, refreshInterval]);
+  }, [url, mode, method, rawHeaders, rawBody, refreshInterval]);
 
   const renderContent = () => {
     if (!url) return h("div", { class: "fetch-no-url" }, "No URL configured");

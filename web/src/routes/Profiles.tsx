@@ -24,37 +24,66 @@ export function Profiles() {
     }
   }
 
-  async function handleDelete(id: string) {
+  async function handleDelete(id: string, name: string) {
+    if (!confirm(`Delete profile "${name}"? This cannot be undone.`)) return;
     await deleteProfile(id);
     await loadProfiles();
   }
 
+  function handleKeyDown(e: KeyboardEvent) {
+    if (e.key === 'Enter') handleCreate();
+  }
+
   return h('div', { class: 'profiles-page' },
-    h('h2', null, 'Profiles'),
+    h('section', { class: 'profiles-header' },
+      h('div', null,
+        h('h2', null, 'Profiles'),
+        h('p', { class: 'page-help' }, 'Manage your Stream Deck profiles')
+      ),
+    ),
 
     h('div', { class: 'create-profile' },
       h('input', {
         type: 'text',
-        placeholder: 'New profile name',
+        placeholder: 'New profile name...',
         value: newProfileName,
         onInput: (e: any) => setNewProfileName(e.target.value),
+        onKeyDown: handleKeyDown,
       }),
-      h('button', { onClick: handleCreate }, 'Create Profile')
+      h('button', {
+        class: 'primary-btn',
+        onClick: handleCreate,
+        disabled: !newProfileName.trim(),
+      }, 'Create Profile')
     ),
 
-    h('div', { class: 'profile-list' },
-      profiles.map(profile =>
-        h('div', { class: 'profile-item', key: profile.id },
-          h('div', { class: 'profile-info' },
-            h('h3', null, profile.name),
-            h('span', null, `${profile.pages.length} page(s), ${profile.pages[0]?.buttons.length || 0} buttons`)
-          ),
-          h('button', {
-            class: 'delete-btn',
-            onClick: () => handleDelete(profile.id),
-          }, 'Delete')
+    profiles.length === 0
+      ? h('div', { class: 'profiles-empty' },
+          h('p', { class: 'profiles-empty-title' }, 'No profiles yet'),
+          h('p', { class: 'profiles-empty-hint' }, 'Create your first profile to get started')
         )
-      )
-    )
+      : h('div', { class: 'profile-list' },
+          profiles.map(profile =>
+            h('div', { class: 'profile-item', key: profile.id },
+              h('div', { class: 'profile-info' },
+                h('h3', { class: 'profile-name' }, profile.name),
+                h('div', { class: 'profile-stats' },
+                  h('span', { class: 'profile-stat' },
+                    h('span', { class: 'profile-stat-value' }, String(profile.pages.length)),
+                    h('span', { class: 'profile-stat-label' }, `page${profile.pages.length !== 1 ? 's' : ''}`)
+                  ),
+                  h('span', { class: 'profile-stat' },
+                    h('span', { class: 'profile-stat-value' }, String(profile.pages[0]?.buttons.length || 0)),
+                    h('span', { class: 'profile-stat-label' }, 'buttons')
+                  )
+                )
+              ),
+              h('button', {
+                class: 'danger-btn',
+                onClick: () => handleDelete(profile.id, profile.name),
+              }, 'Delete')
+            )
+          )
+        )
   );
 }

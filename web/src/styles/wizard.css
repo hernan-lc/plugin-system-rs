@@ -108,6 +108,47 @@
   flex-direction: column;
   gap: 0.4rem;
 }
+.wizard-field label {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.wizard-field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+.wizard-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 0.25rem 0;
+}
+.wizard-json-editor {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 0.6rem;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-family: monospace;
+  resize: vertical;
+  min-height: 80px;
+  line-height: 1.5;
+}
+.wizard-json-editor:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.wizard-json-editor.has-error {
+  border-color: #f44336;
+}
+.wizard-field-error {
+  color: #f44336;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
 .wizard-field label { color: var(--text-secondary); font-size: 0.8rem; }
 .wizard-field input,
 .wizard-field textarea {
@@ -567,6 +608,9 @@
     min-height: 36px;
     padding: 0.4rem 0.6rem;
   }
+  .wizard-field-row {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* Mobile: Phone */
@@ -604,10 +648,14 @@
   }
   .wizard-field input,
   .wizard-field textarea,
-  .wizard-field select {
+  .wizard-field select,
+  .wizard-json-editor {
     padding: 0.75rem;
     font-size: 1rem;
     min-height: 44px;
+  }
+  .wizard-json-editor {
+    min-height: 100px;
   }
   .variant-card {
     padding: 0.5rem;

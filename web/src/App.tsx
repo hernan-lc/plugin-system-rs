@@ -6,12 +6,37 @@ import { Plugins } from './routes/Plugins';
 import { QrButton } from './components/QrModal';
 import { Icons } from './components/Icons';
 
+type Page = 'dashboard' | 'profiles' | 'plugins';
+
+function getPageFromURL(): Page {
+  const params = new URLSearchParams(window.location.search);
+  const page = params.get('page');
+  if (page === 'dashboard' || page === 'profiles' || page === 'plugins') {
+    return page;
+  }
+  return 'dashboard';
+}
+
+function setPageToURL(page: Page) {
+  const url = new URL(window.location.href);
+  url.searchParams.set('page', page);
+  window.history.replaceState({}, '', url.toString());
+}
+
 export function App() {
-  const [currentPage, setCurrentPage] = useState<'dashboard' | 'profiles' | 'plugins'>('dashboard');
+  const [currentPage, setCurrentPage] = useState<Page>(getPageFromURL);
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
     return (localStorage.getItem('theme') as 'dark' | 'light') || 'dark';
   });
   const [menuOpen, setMenuOpen] = useState(false);
+
+  useEffect(() => {
+    function handlePopState() {
+      setCurrentPage(getPageFromURL());
+    }
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -31,8 +56,9 @@ export function App() {
     setTheme(t => t === 'dark' ? 'light' : 'dark');
   }
 
-  function navigateTo(page: 'dashboard' | 'profiles' | 'plugins') {
+  function navigateTo(page: Page) {
     setCurrentPage(page);
+    setPageToURL(page);
     setMenuOpen(false);
   }
 
