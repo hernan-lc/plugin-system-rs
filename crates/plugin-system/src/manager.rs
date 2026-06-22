@@ -18,7 +18,21 @@ type PluginFreeStringFn = unsafe extern "C" fn(*mut std::ffi::c_char);
 /// e.g. "libplugin_volume_master.so" -> "volume_master"
 /// The macro generates symbols like "plugin_{prefix}_create", so we need just the suffix.
 fn prefix_from_path(path: &Path) -> Option<String> {
-    let stem = path.file_stem()?.to_str()?;
+    let mut stem = path.file_stem()?.to_str()?;
+
+    // Handle temporary files: .libplugin_system_monitor.14194.1782098148297159306.tmp
+    if stem.starts_with('.') {
+        stem = &stem[1..];
+    }
+    if let Some(tmp_idx) = stem.rfind(".tmp") {
+        let before_tmp = &stem[..tmp_idx];
+        if let Some(last_dot) = before_tmp.rfind('.') {
+            let before_last_dot = &before_tmp[..last_dot];
+            if let Some(pid_dot) = before_last_dot.rfind('.') {
+                stem = &before_last_dot[..pid_dot];
+            }
+        }
+    }
 
     let name = if cfg!(target_os = "linux") || cfg!(target_os = "macos") {
         stem.strip_prefix("lib").unwrap_or(stem)

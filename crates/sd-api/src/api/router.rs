@@ -78,7 +78,10 @@ pub fn create_router(state: AppState) -> Router {
             "/api/plugins/:plugin_name/update",
             post(plugins::update_plugin),
         )
-        .route("/api/plugins/:plugin_name", get(plugins::get_plugin_data))
+        .route(
+            "/api/plugins/:plugin_name",
+            get(plugins::get_plugin_data).delete(plugins::uninstall_plugin),
+        )
         .route(
             "/api/plugins/:plugin_name/enabled",
             put(plugins::set_plugin_enabled),

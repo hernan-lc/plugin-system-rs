@@ -116,17 +116,26 @@ impl SdPluginManager {
             if !path.is_file() {
                 continue;
             }
+
+            let file_name = path
+                .file_name()
+                .and_then(|s| s.to_str())
+                .unwrap_or_default();
+            if file_name.starts_with('.') {
+                continue;
+            }
+
             if let Some(ext) = path.extension() {
                 if ext != expected_ext {
                     continue;
                 }
             }
-            let file_name = path
+            let file_stem = path
                 .file_stem()
                 .and_then(|s| s.to_str())
                 .unwrap_or("unknown")
                 .to_string();
-            let derived_name = derive_plugin_name(&file_name);
+            let derived_name = derive_plugin_name(&file_stem);
             let metadata_name = PluginManager::metadata_from_path(&path)
                 .ok()
                 .map(|metadata| metadata.name);
@@ -151,8 +160,10 @@ impl SdPluginManager {
                 loaded.push(name);
                 continue;
             }
-            let actual_name = manager.load_plugin(&path)?;
-            loaded.push(actual_name);
+            match manager.load_plugin(&path) {
+                Ok(actual_name) => loaded.push(actual_name),
+                Err(e) => log::error!("Failed to load plugin {}: {}", path.display(), e),
+            }
         }
         Ok(loaded)
     }
@@ -169,17 +180,26 @@ impl SdPluginManager {
                 if !path.is_file() {
                     continue;
                 }
+
+                let file_name = path
+                    .file_name()
+                    .and_then(|s| s.to_str())
+                    .unwrap_or_default();
+                if file_name.starts_with('.') {
+                    continue;
+                }
+
                 if let Some(ext) = path.extension() {
                     if ext != expected_ext {
                         continue;
                     }
                 }
-                let file_name = path
+                let file_stem = path
                     .file_stem()
                     .and_then(|s| s.to_str())
                     .unwrap_or("unknown")
                     .to_string();
-                let derived_name = derive_plugin_name(&file_name);
+                let derived_name = derive_plugin_name(&file_stem);
                 let metadata = manager
                     .plugin_metadata(&derived_name)
                     .or_else(|| PluginManager::metadata_from_path(&path).ok());
@@ -429,6 +449,37 @@ impl SdPluginManager {
         }
     }
 
+    pub async fn uninstall_plugin(&self, plugin_name: &str) -> PluginResult<()> {
+        let mut manager = self.plugin_manager.write().await;
+        let mut state = PluginState::load()?;
+
+        let path = manager
+            .plugin_path(plugin_name)
+            .or_else(|| Some(self.find_plugin_path(plugin_name)));
+        let path = match path {
+            Some(path) if path.exists() => path,
+            _ => return Err(PluginResultError::NotFound(plugin_name.to_string())),
+        };
+
+        let target_name = PluginManager::metadata_from_path(&path)
+            .map(|metadata| metadata.name)
+            .unwrap_or(plugin_name.to_string());
+
+        if manager.is_loaded(&target_name) || manager.is_loaded(plugin_name) {
+            manager
+                .unload_plugin(&target_name)
+                .or_else(|_| manager.unload_plugin(plugin_name))?;
+        }
+
+        fs::remove_file(&path)?;
+
+        state.disabled.remove(&target_name);
+        state.disabled.remove(plugin_name);
+        state.save()?;
+
+        Ok(())
+    }
+
     pub fn plugin_dir(&self) -> &str {
         &self.plugin_dir
     }
@@ -555,6 +606,20 @@ fn plugin_extension() -> &'static str {
 }
 
 fn derive_plugin_name(stem: &str) -> String {
+    let mut stem = stem;
+    if stem.starts_with('.') {
+        stem = &stem[1..];
+    }
+    if let Some(tmp_idx) = stem.rfind(".tmp") {
+        let before_tmp = &stem[..tmp_idx];
+        if let Some(last_dot) = before_tmp.rfind('.') {
+            let before_last_dot = &before_tmp[..last_dot];
+            if let Some(pid_dot) = before_last_dot.rfind('.') {
+                stem = &before_last_dot[..pid_dot];
+            }
+        }
+    }
+
     let name = if cfg!(target_os = "linux") || cfg!(target_os = "macos") {
         stem.strip_prefix("lib").unwrap_or(stem)
     } else {
