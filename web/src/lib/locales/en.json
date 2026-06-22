@@ -1,0 +1,86 @@
+{
+  "app": {
+    "title": "StreamDeck Core",
+    "loading": "Loading..."
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "profiles": "Profiles",
+    "plugins": "Plugins"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "addWidget": "Add Widget",
+    "empty": "No widgets added yet",
+    "emptyHint": "Click \"Add Widget\" to get started",
+    "loading": "Loading dashboard..."
+  },
+  "widget": {
+    "library": "Widget Library",
+    "wizard": {
+      "general": "General",
+      "config": "Config",
+      "style": "Style",
+      "apply": "Apply",
+      "title": "Title",
+      "columns": "Columns",
+      "rows": "Rows",
+      "variant": "Variant",
+      "save": "Save & Close",
+      "cancel": "Cancel",
+      "delete": "Delete"
+    },
+    "context": {
+      "edit": "Edit",
+      "clone": "Clone",
+      "delete": "Delete"
+    },
+    "types": {
+      "system-monitor": "System Monitor",
+      "clock": "Clock",
+      "send-hotkey": "Send Hotkey",
+      "open-url": "Open URL",
+      "type-text": "Type Text",
+      "volume-master": "Volume Control",
+      "volume-apps": "App Volume",
+      "obs-control": "OBS Control",
+      "obs-scenes": "OBS Scenes",
+      "obs-inputs": "OBS Inputs",
+      "fetch": "Fetch Data"
+    },
+    "config": {
+      "refreshInterval": "Refresh Interval (ms)",
+      "hotkey": "Hotkey",
+      "recordHotkey": "Record Hotkey",
+      "url": "URL",
+      "text": "Text",
+      "host": "Host",
+      "port": "Port",
+      "password": "Password"
+    }
+  },
+  "profiles": {
+    "title": "Profiles",
+    "create": "Create Profile",
+    "namePlaceholder": "Profile name",
+    "empty": "No profiles yet",
+    "emptyHint": "Create a profile to get started",
+    "confirmDelete": "Are you sure you want to delete this profile?"
+  },
+  "plugins": {
+    "title": "Plugins",
+    "install": "Install Plugin",
+    "refresh": "Refresh",
+    "empty": "No plugins installed",
+    "emptyHint": "Upload a plugin file to get started",
+    "confirmUninstall": "Are you sure you want to uninstall plugin {name}?",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "version": "Version"
+  },
+  "theme": {
+    "dark": "Dark",
+    "light": "Light",
+    "switchTo": "Switch to {theme} theme"
+  }
+}

@@ -20,6 +20,8 @@ pub struct DashboardWidget {
 pub struct DashboardLayout {
     pub widgets: Vec<DashboardWidget>,
     pub columns: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub custom_css: Option<String>,
 }
 
 impl Default for DashboardLayout {
@@ -27,6 +29,7 @@ impl Default for DashboardLayout {
         Self {
             widgets: Vec::new(),
             columns: 3,
+            custom_css: None,
         }
     }
 }

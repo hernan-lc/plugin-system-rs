@@ -1,0 +1,86 @@
+{
+  "app": {
+    "title": "StreamDeck Core",
+    "loading": "Cargando..."
+  },
+  "nav": {
+    "dashboard": "Panel",
+    "profiles": "Perfiles",
+    "plugins": "Plugins"
+  },
+  "dashboard": {
+    "title": "Panel",
+    "addWidget": "Agregar Widget",
+    "empty": "No hay widgets agregados",
+    "emptyHint": "Haz clic en \"Agregar Widget\" para comenzar",
+    "loading": "Cargando panel..."
+  },
+  "widget": {
+    "library": "Biblioteca de Widgets",
+    "wizard": {
+      "general": "General",
+      "config": "Configuración",
+      "style": "Estilo",
+      "apply": "Aplicar",
+      "title": "Título",
+      "columns": "Columnas",
+      "rows": "Filas",
+      "variant": "Variante",
+      "save": "Guardar y Cerrar",
+      "cancel": "Cancelar",
+      "delete": "Eliminar"
+    },
+    "context": {
+      "edit": "Editar",
+      "clone": "Clonar",
+      "delete": "Eliminar"
+    },
+    "types": {
+      "system-monitor": "Monitor del Sistema",
+      "clock": "Reloj",
+      "send-hotkey": "Enviar Atajo",
+      "open-url": "Abrir URL",
+      "type-text": "Escribir Texto",
+      "volume-master": "Control de Volumen",
+      "volume-apps": "Volumen por App",
+      "obs-control": "Control OBS",
+      "obs-scenes": "Escenas OBS",
+      "obs-inputs": "Entradas OBS",
+      "fetch": "Obtener Datos"
+    },
+    "config": {
+      "refreshInterval": "Intervalo de Actualización (ms)",
+      "hotkey": "Atajo de Teclado",
+      "recordHotkey": "Grabar Atajo",
+      "url": "URL",
+      "text": "Texto",
+      "host": "Host",
+      "port": "Puerto",
+      "password": "Contraseña"
+    }
+  },
+  "profiles": {
+    "title": "Perfiles",
+    "create": "Crear Perfil",
+    "namePlaceholder": "Nombre del perfil",
+    "empty": "No hay perfiles",
+    "emptyHint": "Crea un perfil para comenzar",
+    "confirmDelete": "¿Estás seguro de que quieres eliminar este perfil?"
+  },
+  "plugins": {
+    "title": "Plugins",
+    "install": "Instalar Plugin",
+    "refresh": "Actualizar",
+    "empty": "No hay plugins instalados",
+    "emptyHint": "Sube un archivo de plugin para comenzar",
+    "confirmUninstall": "¿Estás seguro de que quieres desinstalar el plugin {name}?",
+    "enabled": "Habilitado",
+    "disabled": "Deshabilitado",
+    "version": "Versión"
+  },
+  "theme": {
+    "dark": "Oscuro",
+    "light": "Claro",
+    "switchTo": "Cambiar a tema {theme}"
+  }
+}

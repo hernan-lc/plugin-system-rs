@@ -7,6 +7,8 @@ import { WidgetLibrary } from "./WidgetLibrary";
 import { WidgetWizard } from "./WidgetWizard";
 import { WidgetContent } from "./WidgetContent";
 import { Icons } from "./Icons";
+import { t } from "../lib/i18n";
+import { CssEditor } from "./CssEditor";
 
 interface ContextMenuState {
   visible: boolean;
@@ -26,6 +28,7 @@ export function WidgetGrid() {
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({
     visible: false, x: 0, y: 0, widgetId: "",
   });
+  const [showCssEditor, setShowCssEditor] = useState(false);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -108,6 +111,10 @@ export function WidgetGrid() {
     setContextMenu((prev) => ({ ...prev, visible: false }));
   }
 
+  function handleCssChange(css: string) {
+    persist({ ...layout, customCss: css });
+  }
+
   function showContextMenu(e: Event, widgetId: string) {
     e.preventDefault();
     e.stopPropagation();
@@ -156,8 +163,23 @@ export function WidgetGrid() {
     };
   }, []);
 
+  useEffect(() => {
+    let styleEl = document.getElementById("custom-dashboard-css");
+    if (!styleEl) {
+      styleEl = document.createElement("style");
+      styleEl.id = "custom-dashboard-css";
+      document.head.appendChild(styleEl);
+    }
+    styleEl.textContent = layout.customCss || "";
+    return () => {
+      if (styleEl && styleEl.parentNode) {
+        styleEl.parentNode.removeChild(styleEl);
+      }
+    };
+  }, [layout.customCss]);
+
   if (loading)
-    return h("div", { class: "dashboard-loading" }, "Loading dashboard...");
+    return h("div", { class: "dashboard-loading" }, t("dashboard.loading"));
 
   const editing = layout.widgets.find((w) => w.id === wizardWidget) || null;
 
@@ -167,12 +189,21 @@ export function WidgetGrid() {
     h(
       "div",
       { class: "dashboard-header" },
-      h("h2", null, "Dashboard"),
+      h("h2", null, t("dashboard.title")),
       h(
-        "button",
-        { class: "add-widget-btn", onClick: () => setShowLibrary(true) },
-        h(Icons.plus, null),
-        "Add Widget",
+        "div",
+        { class: "dashboard-header-actions" },
+        h(
+          "button",
+          { class: "add-widget-btn", onClick: () => setShowCssEditor(true) },
+          "{ }",
+        ),
+        h(
+          "button",
+          { class: "add-widget-btn", onClick: () => setShowLibrary(true) },
+          h(Icons.plus, null),
+          t("dashboard.addWidget"),
+        ),
       ),
     ),
     layout.widgets.length === 0
@@ -180,8 +211,8 @@ export function WidgetGrid() {
           "div",
           { class: "dashboard-empty" },
           h("div", { class: "empty-icon" }, h(Icons.plus, null)),
-          h("div", { class: "empty-text" }, "No widgets added yet"),
-          h("div", { class: "empty-sub" }, 'Click "Add Widget" to get started'),
+          h("div", { class: "empty-text" }, t("dashboard.empty")),
+          h("div", { class: "empty-sub" }, t("dashboard.emptyHint")),
         )
       : h(
           "div",
@@ -230,7 +261,7 @@ export function WidgetGrid() {
             },
           },
           h(Icons.edit, null),
-          "Edit",
+          t("widget.context.edit"),
         ),
         h(
           "button",
@@ -241,7 +272,7 @@ export function WidgetGrid() {
             },
           },
           h(Icons.copy, null),
-          "Clone",
+          t("widget.context.clone"),
         ),
         h("div", { class: "ctx-separator" }),
         h(
@@ -254,7 +285,7 @@ export function WidgetGrid() {
             },
           },
           h(Icons.close, null),
-          "Delete",
+          t("widget.context.delete"),
         ),
       ),
     showLibrary &&
@@ -269,6 +300,12 @@ export function WidgetGrid() {
         onSave: (id, updates) => handleSaveWidget(id, updates),
         onRemove: () => handleRemoveWidget(editing.id),
         onClose: () => setWizardWidget(null),
+      }),
+    showCssEditor &&
+      h(CssEditor, {
+        value: layout.customCss || "",
+        onChange: handleCssChange,
+        onClose: () => setShowCssEditor(false),
       }),
   );
 }

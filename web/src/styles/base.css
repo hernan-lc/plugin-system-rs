@@ -154,6 +154,38 @@
     color: var(--accent);
     border-color: var(--accent);
 }
+.fab-lang-selector {
+    flex: 1;
+}
+.lang-select {
+    width: 100%;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    padding: 0.5rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    font-weight: bold;
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23888' d='M2 4l4 4 4-4'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.5rem center;
+    padding-right: 1.5rem;
+}
+.lang-select:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+}
+.lang-select:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+.lang-select option {
+    background: var(--bg-nav);
+    color: var(--text);
+}
 .nav-qr-btn {
     background: var(--accent) !important;
     color: var(--bg-page) !important;

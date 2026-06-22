@@ -301,6 +301,7 @@ export const WIZARD_STEPS: WizardStep[] = [
 export interface DashboardLayout {
   widgets: WidgetConfig[];
   columns: number;
+  customCss?: string;
 }
 
 export interface CSSCustomProperties {
