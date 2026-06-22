@@ -1,6 +1,7 @@
 import { h } from "preact";
 import { useState } from "preact/hooks";
 import { WidgetConfig } from "../lib/types";
+import { widgetHasConfig } from "./widgetHelpers";
 import { WizardGeneral } from "./WidgetWizard/WizardGeneral";
 import { WizardConfig } from "./WidgetWizard/WizardConfig";
 import { WizardStyle } from "./WidgetWizard/WizardStyle";
@@ -35,7 +36,22 @@ export function WidgetWizard({
   const [variant, setVariant] = useState<string>(
     widget.settings.variant || "compact",
   );
-  const totalSteps = 4;
+  const hasConfig = widgetHasConfig(widget.type);
+  const stepDefs = [
+    { label: "General", render: () => h(WizardGeneral, {
+      title, colSpan, columns,
+      onChangeTitle: setTitle, onChangeColSpan: setColSpan,
+    })},
+    ...(hasConfig ? [{ label: "Config", render: () => h(WizardConfig, {
+      widget, settings, onChange: setSettings, updateSetting,
+    })}] : []),
+    { label: "Style", render: () => h(WizardStyle, { widget, variant, onChange: setVariant }) },
+    { label: "Apply", render: () => h(WizardConfirm, {
+      widget, title, colSpan, settings, variant,
+      onApply: handleApply, onRemove,
+    }) },
+  ];
+  const totalSteps = stepDefs.length;
 
   function handleNext() {
     if (step < totalSteps - 1) setStep(step + 1);
@@ -66,48 +82,23 @@ export function WidgetWizard({
       h(
         "div",
         { class: "wizard-steps" },
-        ["General", "Config", "Style", "Apply"].map((label, i) =>
+        stepDefs.map((s, i) =>
           h(
             "div",
             {
               class: `wizard-step-indicator ${i === step ? "active" : i < step ? "done" : ""}`,
-              key: label,
+              key: s.label,
               onClick: () => setStep(i),
             },
-            h("div", { class: "wizard-step-circle" }, label[0]),
-            h("div", { class: "wizard-step-label" }, label),
+            h("div", { class: "wizard-step-circle" }, s.label[0]),
+            h("div", { class: "wizard-step-label" }, s.label),
           ),
         ),
       ),
       h(
         "div",
         { class: "wizard-body" },
-        step === 0 &&
-          h(WizardGeneral, {
-            title,
-            colSpan,
-            columns,
-            onChangeTitle: setTitle,
-            onChangeColSpan: setColSpan,
-          }),
-        step === 1 &&
-          h(WizardConfig, {
-            widget,
-            settings,
-            onChange: setSettings,
-            updateSetting,
-          }),
-        step === 2 && h(WizardStyle, { widget, variant, onChange: setVariant }),
-        step === 3 &&
-          h(WizardConfirm, {
-            widget,
-            title,
-            colSpan,
-            settings,
-            variant,
-            onApply: handleApply,
-            onRemove,
-          }),
+        stepDefs[step].render(),
       ),
       h(
         "div",

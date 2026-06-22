@@ -5,6 +5,7 @@ export const WIDGET_CATALOG: {
   label: string;
   icon: string;
   description: string;
+  hasConfig: boolean;
   defaultColSpan: number;
   defaultRowSpan: number;
 }[] = [
@@ -13,6 +14,7 @@ export const WIDGET_CATALOG: {
     label: "System Monitor",
     icon: "%",
     description: "CPU, Memory, Load, Uptime",
+    hasConfig: true,
     defaultColSpan: 1,
     defaultRowSpan: 1,
   },
@@ -21,6 +23,7 @@ export const WIDGET_CATALOG: {
     label: "Clock",
     icon: "T",
     description: "Current time & date",
+    hasConfig: false,
     defaultColSpan: 1,
     defaultRowSpan: 1,
   },
@@ -29,6 +32,7 @@ export const WIDGET_CATALOG: {
     label: "Send Hotkey",
     icon: "H",
     description: "Trigger keyboard hotkey",
+    hasConfig: true,
     defaultColSpan: 1,
     defaultRowSpan: 1,
   },
@@ -37,6 +41,7 @@ export const WIDGET_CATALOG: {
     label: "Open URL",
     icon: "U",
     description: "Open a URL in browser",
+    hasConfig: true,
     defaultColSpan: 1,
     defaultRowSpan: 1,
   },
@@ -45,6 +50,7 @@ export const WIDGET_CATALOG: {
     label: "Type Text",
     icon: "A",
     description: "Type text string",
+    hasConfig: true,
     defaultColSpan: 1,
     defaultRowSpan: 1,
   },
@@ -53,6 +59,7 @@ export const WIDGET_CATALOG: {
     label: "Volume Control",
     icon: "V",
     description: "Master volume slider",
+    hasConfig: true,
     defaultColSpan: 1,
     defaultRowSpan: 1,
   },
@@ -61,6 +68,7 @@ export const WIDGET_CATALOG: {
     label: "App Volume",
     icon: "A",
     description: "Per-app volume control",
+    hasConfig: true,
     defaultColSpan: 1,
     defaultRowSpan: 1,
   },
@@ -69,6 +77,7 @@ export const WIDGET_CATALOG: {
     label: "OBS Control",
     icon: "O",
     description: "Stream, record, virtual cam",
+    hasConfig: true,
     defaultColSpan: 1,
     defaultRowSpan: 1,
   },
@@ -77,6 +86,7 @@ export const WIDGET_CATALOG: {
     label: "OBS Scenes",
     icon: "S",
     description: "Scene switcher",
+    hasConfig: true,
     defaultColSpan: 1,
     defaultRowSpan: 1,
   },
@@ -85,6 +95,7 @@ export const WIDGET_CATALOG: {
     label: "OBS Inputs",
     icon: "I",
     description: "Input volume & mute",
+    hasConfig: true,
     defaultColSpan: 1,
     defaultRowSpan: 1,
   },
@@ -93,6 +104,7 @@ export const WIDGET_CATALOG: {
     label: "Fetch Data",
     icon: "F",
     description: "Fetch and display data",
+    hasConfig: true,
     defaultColSpan: 1,
     defaultRowSpan: 1,
   },
@@ -160,6 +172,11 @@ export function getDefaultSettings(type: WidgetType): Record<string, any> {
       break;
   }
   return settings;
+}
+
+export function widgetHasConfig(type: WidgetType): boolean {
+  const entry = WIDGET_CATALOG.find((w) => w.type === type);
+  return entry?.hasConfig ?? true;
 }
 
 export function buildDefaultWidget(type: WidgetType): WidgetConfig {
