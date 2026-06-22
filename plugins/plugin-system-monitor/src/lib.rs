@@ -144,8 +144,9 @@ impl SystemMonitorPlugin {
             .map(|cpu| cpu.brand().trim().to_string())
             .filter(|model| !model.is_empty())
             .unwrap_or_else(|| "Unknown".to_string());
-        let cpu_cores =
-            sysinfo::System::physical_core_count().unwrap_or_else(|| system.cpus().len().max(1));
+        let cpu_cores = system
+            .physical_core_count()
+            .unwrap_or_else(|| system.cpus().len().max(1));
 
         system.refresh_memory();
         system.refresh_processes(sysinfo::ProcessesToUpdate::All, true);

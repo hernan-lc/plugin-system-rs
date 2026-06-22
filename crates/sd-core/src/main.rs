@@ -279,7 +279,7 @@ fn pid_lock_path() -> PathBuf {
 
     #[cfg(not(target_os = "windows"))]
     {
-        return user_state_dir().join("sd-core.pid.lock");
+        user_state_dir().join("sd-core.pid.lock")
     }
 }
 
